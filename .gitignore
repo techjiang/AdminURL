@@ -1,0 +1,24 @@
+# ===== AdminURL 忽略规则 =====
+
+# 运行时配置文件（安装时生成，含密钥，绝不入库）
+config/config.php
+
+# SQLite 数据库（运行时生成）
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+
+# 系统 / 编辑器杂项
+.DS_Store
+Thumbs.db
+*.log
+*.pid
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 编译 / 依赖目录（本项目无需 Composer，保留以防未来引入）
+vendor/
+node_modules/
