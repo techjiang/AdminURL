@@ -1,0 +1,37 @@
+# ==========================================================================
+# AdminURL - Apache 配置
+# 已将隐藏文件排除在外部访问之外，防止配置泄露
+# ==========================================================================
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # 防止访问隐藏文件 / 敏感目录
+    RewriteRule ^(?:\.|config/|data/|includes/) - [F,L]
+
+    # 短链路由：/s/{code} -> go.php
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^s/([A-Za-z0-9]{1,32})/?$ go.php?s=$1 [L,QSA]
+
+    # 根目录/index 跳转首页
+    RewriteRule ^index\.php$ / [L,R=301]
+</IfModule>
+
+# 静态资源长缓存
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType image/svg+xml "access plus 7 days"
+    ExpiresByType text/css "access plus 7 days"
+    ExpiresByType application/javascript "access plus 7 days"
+</IfModule>
+
+# 禁止目录浏览
+Options -Indexes
+
+# 安全头
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "no-referrer"
+</IfModule>
