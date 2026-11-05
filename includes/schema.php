@@ -56,6 +56,16 @@ SQL);
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_click_logs_link ON click_logs (link_id)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_click_logs_created ON click_logs (created_at)');
 
+    $pdo->exec(<<<'SQL'
+CREATE TABLE IF NOT EXISTS click_daily (
+    link_id INTEGER NOT NULL,
+    day     TEXT NOT NULL,
+    clicks  INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (link_id, day)
+)
+SQL);
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_click_daily_day ON click_daily (day)');
+
     // 站点设置 KV
     $pdo->exec(<<<'SQL'
 CREATE TABLE IF NOT EXISTS settings (

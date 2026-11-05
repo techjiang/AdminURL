@@ -8,7 +8,7 @@
 - **仓库**：https://github.com/techjiang/AdminURL
 - **文档**：https://docs.asoe.cn · [部署指南](docs/DEPLOYMENT.md)
 - **协议**：[MIT](LICENSE)
-- **当前版本**：v2.2.0（[更新日志](CHANGELOG.md)）
+- **当前版本**：v2.3.0（[更新日志](CHANGELOG.md)）
 
 ---
 
@@ -18,6 +18,8 @@
 | --- | --- |
 | 短链接生成 | 长链接一键转为短链接，支持自定义短码（3-32 位字母数字） |
 | 根路径短链 | 默认生成 `域名/{code}` 标准短链；`/s/{code}` 作为兼容拓展始终可用，可在设置中切换 |
+| 点击统计 | 全站 / 单链近 14 天点击趋势、今日与周指标、热门短链 Top 10，按日聚合长期保留 |
+| 友好错误页 | 短链不存在、已停用或被屏蔽时展示品牌化 404 / 403 页面 |
 | 链接管理 | 列表、搜索、分页、编辑、启用/停用、删除，统计一目了然 |
 | 数据导出 | 一键导出 CSV，可沿用当前搜索条件，UTF-8 BOM 兼容 Excel |
 | 批量操作 | 全选 / 批量启用、停用、删除，带二次确认与 CSRF 校验 |
@@ -179,13 +181,13 @@ curl -X POST https://your.domain/api/v1/links -H "Authorization: Bearer TOKEN" -
 
 ```
 AdminURL/
-├── admin/            # 管理后台（登录、仪表盘、链接、导出、设置、迁移、UA、API）
+├── admin/            # 管理后台（登录、仪表盘、统计、链接、详情、导出、设置、迁移、UA、API）
 ├── api/              # REST API
 ├── assets/           # CSS / JS / SVG 图标（无外部依赖）
 ├── config/           # config.example.php（config.php 由安装生成，不入库）
 ├── data/             # SQLite 数据库（运行时生成，不入库）
 ├── docs/             # 部署指南
-├── includes/         # 核心库（数据库、认证、函数、Schema、版本、图标、模板）
+├── includes/         # 核心库（数据库、认证、函数、Schema、统计、图表、版本、图标、模板）
 ├── CHANGELOG.md      # 更新日志
 ├── install/          # 安装向导（上线后删除）
 ├── go.php            # 短链跳转入口（/{code} 与 /s/{code}）

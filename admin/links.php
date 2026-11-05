@@ -238,6 +238,8 @@ require __DIR__ . '/_header.php';
                             </td>
                             <td class="td-time"><?= e($row['created_at']) ?></td>
                             <td class="td-actions">
+                                <a href="<?= e(base_path('/admin/link.php?id=' . (int)$row['id'])) ?>"
+                                   class="btn btn-ghost btn-sm" title="详情与趋势"><?= icon('chart', 'icon-sm') ?></a>
                                 <a href="<?= e(base_path('/admin/links.php?action=edit&id=' . (int)$row['id'])) ?>"
                                    class="btn btn-ghost btn-sm" title="编辑"><?= icon('edit', 'icon-sm') ?></a>
                                 <a href="<?= e(base_path('/admin/links.php?action=toggle&id=' . (int)$row['id'] . '&_csrf=' . urlencode(csrf_token()))) ?>"

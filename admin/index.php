@@ -14,7 +14,7 @@ $activeNav = 'dashboard';
 $stats = ['total' => 0, 'clicks' => 0, 'today' => 0, 'pending' => 0];
 try {
     $stats['total']   = (int)db()->query('SELECT COUNT(*) AS c FROM links')->fetch()['c'];
-    $stats['clicks']  = (int)db()->query('SELECT COALESCE(SUM(clicks),0) AS c FROM links')->fetch()['c'];
+    $stats['clicks']  = live_total_clicks();
     $todayStmt = db()->prepare('SELECT COUNT(*) AS c FROM links WHERE created_at >= ?');
     $todayStmt->execute([date('Y-m-d 00:00:00')]);
     $stats['today']   = (int)$todayStmt->fetch()['c'];
@@ -93,28 +93,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'quick_c
 }
 
 // 生成趋势图 SVG
-$chartW = 640;
-$chartH = 186;
-$padL = 34;
-$padR = 8;
-$padT = 14;
-$baseY = 150;
-$plotH = 122;
-$points = [];
-$idx = 0;
-$count = count($trend);
-foreach ($trend as $day => $value) {
-    $x = $padL + $idx * (($chartW - $padL - $padR) / max(1, $count - 1));
-    $y = $baseY - ($value / $trendMax) * $plotH;
-    $points[] = ['x' => $x, 'y' => $y, 'day' => $day, 'value' => $value];
-    $idx++;
-}
-$linePath = '';
-foreach ($points as $i => $p) {
-    $linePath .= ($i === 0 ? 'M' : ' L') . round($p['x'], 1) . ',' . round($p['y'], 1);
-}
-$areaPath = $linePath . ' L' . round(end($points)['x'], 1) . ',' . $baseY . ' L' . $padL . ',' . $baseY . ' Z';
-
 require __DIR__ . '/_header.php';
 ?>
 
@@ -168,29 +146,7 @@ require __DIR__ . '/_header.php';
             <span class="chart-total">共新增 <?= number_format($trendSum) ?> 条</span>
         </div>
         <div class="chart-wrap">
-            <svg class="chart-svg" viewBox="0 0 <?= $chartW ?> <?= $chartH ?>" role="img" aria-label="近 14 天短链创建趋势">
-                <defs>
-                    <linearGradient id="au-area" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stop-color="#6366f1" stop-opacity=".28"/>
-                        <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
-                    </linearGradient>
-                </defs>
-                <?php for ($g = 0; $g <= 3; $g++): ?>
-                    <?php $gy = $baseY - $g * ($plotH / 3); ?>
-                    <line class="chart-grid-line" x1="<?= $padL ?>" y1="<?= round($gy, 1) ?>" x2="<?= $chartW - $padR ?>" y2="<?= round($gy, 1) ?>"/>
-                    <text class="chart-label" x="0" y="<?= round($gy + 4, 1) ?>"><?= (int)round($trendMax * $g / 3) ?></text>
-                <?php endfor; ?>
-                <path class="chart-area" d="<?= e($areaPath) ?>"/>
-                <path class="chart-line" d="<?= e($linePath) ?>"/>
-                <?php foreach ($points as $i => $p): ?>
-                    <?php if ($i === count($points) - 1 || $p['value'] === $trendMax): ?>
-                        <circle class="chart-dot" cx="<?= round($p['x'], 1) ?>" cy="<?= round($p['y'], 1) ?>" r="4"/>
-                    <?php endif; ?>
-                    <?php if ($i % 3 === 0 || $i === count($points) - 1): ?>
-                        <text class="chart-label" x="<?= round($p['x'], 1) ?>" y="<?= $baseY + 22 ?>" text-anchor="middle"><?= e(date('m/d', strtotime($p['day']))) ?></text>
-                    <?php endif; ?>
-                <?php endforeach; ?>
-            </svg>
+            <?= trend_svg($trend, '近 14 天短链创建趋势') ?>
         </div>
     </div>
 

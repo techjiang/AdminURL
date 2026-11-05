@@ -14,6 +14,7 @@ $adminSiteName = $adminSiteName ?? (string)setting('site_name', 'AdminURL');
 $navGroups = [
     '概览' => [
         'dashboard' => ['仪表盘', base_path('/admin/'), 'grid'],
+        'analytics' => ['数据统计', base_path('/admin/analytics.php'), 'chart'],
     ],
     '链接管理' => [
         'links'   => ['全部链接', base_path('/admin/links.php'), 'link'],

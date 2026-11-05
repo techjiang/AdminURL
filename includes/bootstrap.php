@@ -45,6 +45,8 @@ require_once ROOT . '/includes/db.php';
 require_once ROOT . '/includes/auth.php';
 require_once ROOT . '/includes/icons.php';
 require_once ROOT . '/includes/version.php';
+require_once ROOT . '/includes/stats.php';
+require_once ROOT . '/includes/chart.php';
 
 // 安全响应头
 header('X-Frame-Options: SAMEORIGIN');
