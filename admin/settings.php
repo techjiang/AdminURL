@@ -22,6 +22,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $siteName = trim((string)($_POST['site_name'] ?? 'AdminURL'));
             $siteDesc = trim((string)($_POST['site_desc'] ?? ''));
             $redirectType = (string)($_POST['redirect_type'] ?? '302');
+            $shortPathMode = (string)($_POST['short_path_mode'] ?? 'root');
+            if (!in_array($shortPathMode, ['root', 's'], true)) {
+                $shortPathMode = 'root';
+            }
             $autoTitle = isset($_POST['auto_title']) ? '1' : '0';
             $publicShorten = isset($_POST['public_shorten']) && (string)($_POST['public_shorten']) !== '' ? '1' : '0';
             $publicRegister = isset($_POST['public_register']) && (string)($_POST['public_register']) !== '' ? '1' : '0';
@@ -34,6 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 set_setting('site_name', $siteName);
                 set_setting('site_desc', mb_substr($siteDesc, 0, 120));
                 set_setting('redirect_type', $redirectType);
+                set_setting('short_path_mode', $shortPathMode);
                 set_setting('auto_title', $autoTitle);
                 set_setting('public_shorten', $publicShorten);
                 set_setting('public_register', $publicRegister);
@@ -73,6 +78,7 @@ $siteSettings = [
     'site_name'       => (string)setting('site_name', 'AdminURL'),
     'site_desc'       => (string)setting('site_desc', ''),
     'redirect_type'   => (string)setting('redirect_type', '302'),
+    'short_path_mode' => (string)setting('short_path_mode', 'root'),
     'auto_title'      => (string)setting('auto_title', '1'),
     'public_shorten'  => (string)setting('public_shorten', '0'),
     'public_register' => (string)setting('public_register', '0'),
@@ -110,6 +116,14 @@ require __DIR__ . '/_header.php';
                     <option value="302" <?= $siteSettings['redirect_type'] === '302' ? 'selected' : '' ?>>302 临时跳转（推荐，便于随时改目标）</option>
                     <option value="301" <?= $siteSettings['redirect_type'] === '301' ? 'selected' : '' ?>>301 永久跳转（浏览器会缓存，利于 SEO）</option>
                 </select>
+            </div>
+            <div class="form-group">
+                <label for="short_path_mode">短链路径形态</label>
+                <select name="short_path_mode" id="short_path_mode">
+                    <option value="root" <?= $siteSettings['short_path_mode'] === 'root' ? 'selected' : '' ?>>根路径 /{code}（默认，标准短链）</option>
+                    <option value="s" <?= $siteSettings['short_path_mode'] === 's' ? 'selected' : '' ?>>/s/{code}（兼容拓展，沿用旧链接）</option>
+                </select>
+                <p class="form-help">仅决定新生成链接的形式；无论选择哪项，两种路径始终都能访问。</p>
             </div>
             <label class="switch-row">
                 <input type="checkbox" name="auto_title" <?= $siteSettings['auto_title'] === '1' ? 'checked' : '' ?>>

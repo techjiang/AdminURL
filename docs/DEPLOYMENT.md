@@ -57,7 +57,8 @@ rm -rf /var/www/AdminURL/install
 
 `.htaccess` 已包含：
 
-- 短链路由：`/s/{code}` → `go.php?s={code}`
+- **主路由**：`/{code}` → `go.php?s={code}`，仅在请求不是真实文件 / 目录时生效
+- **兼容拓展**：`/s/{code}` → `go.php?s={code}`，旧版链接继续可用
 - 敏感目录拦截：`.开头目录`、`config/`、`data/`、`includes/` 一律 403
 - `index.php` 301 至根目录
 - 安全头（`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`）
@@ -79,14 +80,20 @@ server {
 
     charset utf-8;
 
-    # 短链路由：/s/{code} -> go.php
+    # 敏感目录：直接拒绝
+    location ~ ^/(\.|config/|data/|includes/) {
+        deny all;
+    }
+
+    # 兼容拓展：/s/{code}（旧版链接）
     location ~ ^/s/([A-Za-z0-9]{1,32})/?$ {
         try_files $uri /go.php?s=$1;
     }
 
-    # 敏感目录：直接拒绝
-    location ~ ^/(\.|config/|data/|includes/) {
-        deny all;
+    # 主路由：/{code}
+    # 负向前瞻排除系统保留目录，避免 /admin/、/api/ 等被误判为短码
+    location ~ ^/(?!(?:admin|api|assets|config|data|docs|includes|install|go|index|router|robots|favicon|s)(?:/|$))([A-Za-z0-9]{3,32})/?$ {
+        try_files $uri $uri/ /go.php?s=$1;
     }
 
     # 静态资源
@@ -124,23 +131,29 @@ nginx -t && nginx -s reload
 php -S 0.0.0.0:8000 router.php
 ```
 
-- 短链地址形如：`http://127.0.0.1:8000/s/aB3x9`
+- 短链地址形如：`http://127.0.0.1:8000/aB3x9`
+- 兼容拓展地址：`http://127.0.0.1:8000/s/aB3x9`
 - 安装向导：`http://127.0.0.1:8000/install/`
 - 管理后台：`http://127.0.0.1:8000/admin/`
 
-> 内置服务器仅为开发调试设计，**生产环境请使用 Apache / Nginx**。
+> `router.php` 会先放行真实文件与目录，再把 `/{code}` 与 `/s/{code}` 交给 `go.php`。开发时请务必带上该参数，否则根路径短链会 404。内置服务器仅为开发调试设计，**生产环境请使用 Apache / Nginx**。
 
 ---
 
 ## 伪静态路由说明
 
-短链采用 `/s/{code}` 路径，而不是 `?code=` 参数，便于分享与收录。两种服务器等价配置：
+短链默认采用 **`/{code}`**（标准短链形态），**`/s/{code}` 作为兼容拓展保留**。两种路径最终都由 `go.php` 统一解析：
 
-| 服务器 | 规则 |
-| --- | --- |
-| Apache | `RewriteRule ^s/([A-Za-z0-9]{1,32})/?$ go.php?s=$1 [L,QSA]`（已内置） |
-| Nginx | `location ~ ^/s/([A-Za-z0-9]{1,32})/?$ { try_files $uri /go.php?s=$1; }` |
-| IIS | URL Rewrite：`^s/([A-Za-z0-9]{1,32})/?$` → `go.php?s={R:1}` |
+- 服务端**始终同时接受两种路径**，后台「短链路径形态」设置只决定新生成链接长什么样，切换不会让已发布链接失效。
+- 规则必须保证**真实文件与目录优先**，只有不存在的路径才进入短链重写。
+- `go.php` 内置保留路径名拦截（`admin` / `api` / `assets` / `config` / `data` / `docs` / `includes` / `install` / `go` / `index` / `router` / `robots` / `favicon` / `s` 等），即使伪静态配置遗漏也不会把系统路径当成短码。
+- 直连兜底：`go.php?s={code}` 同样可用。
+
+| 服务器 | 主路由 `/{code}` | 兼容拓展 `/s/{code}` |
+| --- | --- | --- |
+| Apache | `RewriteCond %{REQUEST_FILENAME} !-f` + `!-d`，再 `RewriteRule ^([A-Za-z0-9]{3,32})/?$ go.php?s=$1 [L,QSA]`（已内置） | `RewriteRule ^s/([A-Za-z0-9]{1,32})/?$ go.php?s=$1 [L,QSA]`（已内置） |
+| Nginx | `location ~ ^/(?!保留目录)([A-Za-z0-9]{3,32})/?$ { try_files $uri $uri/ /go.php?s=$1; }`（完整规则见上文） | `location ~ ^/s/([A-Za-z0-9]{1,32})/?$ { try_files $uri /go.php?s=$1; }` |
+| IIS | URL Rewrite：`^([A-Za-z0-9]{3,32})/?$` → `go.php?s={R:1}` | `^s/([A-Za-z0-9]{1,32})/?$` → `go.php?s={R:1}` |
 
 ---
 
@@ -152,10 +165,11 @@ php -S 0.0.0.0:8000 router.php
 2. ✅ **`data/`、`config/` 不可 Web 访问**：项目默认规则已拦截，Nginx 请按上文配置 `deny all`。
 3. ✅ **`config/config.php` 的 `secret_key` 唯一且保密**：泄露后请修改并重新登录所有会话。
 4. ✅ **数据目录权限收紧**：目录属主为 PHP 运行用户，其他用户不可读写（`chmod 750`）。
-5. ✅ **强制 HTTPS**：建议在服务器层开启 301 跳转与 HSTS。
-6. ✅ **后台开启「开放使用」后注意**：短链将对所有人可见，UA 屏蔽与禁用链接仍生效。
-7. ✅ **定期备份数据库**：`data/adminurl.db` 单文件即全部数据，停机复制即可备份。
-8. ✅ **关注 PHP 与 Web 服务器安全更新**。
+5. ✅ **根路径短链的重写规则排除真实目录**：否则 `/admin/`、`/api/` 可能被误判为短码。
+6. ✅ **强制 HTTPS**：建议在服务器层开启 301 跳转与 HSTS。
+7. ✅ **后台开启「开放使用」后注意**：短链将对所有人可见，UA 屏蔽与禁用链接仍生效。
+8. ✅ **定期备份数据库**：`data/adminurl.db` 单文件即全部数据，停机复制即可备份。
+9. ✅ **关注 PHP 与 Web 服务器安全更新**。
 
 ---
 
@@ -165,7 +179,13 @@ php -S 0.0.0.0:8000 router.php
 将 `config/` 目录属主改为 PHP 运行用户（如 `chown www-data:www-data config/`）。
 
 **Q：短链访问 404？**  
-先确认伪静态规则已生效（Apache 开启 `AllowOverride All`；Nginx 已配置 `location ~ ^/s/`）。再用 `curl -I https://your.domain/s/{code}` 验证。
+先确认伪静态规则已生效（Apache 开启 `AllowOverride All`；Nginx 已配置根路径 `location`；内置服务器启动时带了 `router.php`），再用 `curl -I https://your.domain/aB3x9` 验证。旧的 `/s/{code}` 链接无需改动也仍然可用。
+
+**Q：能不能改回 `/s/{code}` 形式？**  
+可以。`后台 → 系统设置 → 站点信息 → 短链路径形态` 选择 `/s/{code}` 即可；切换只影响新生成的链接，两种路径始终都能访问，不需要迁移数据。
+
+**Q：为什么访问 `/admin` 变成了找短码？**  
+说明伪静态没有排除真实目录。Apache 请确认 `.htaccess` 生效且 `!-f` / `!-d` 条件存在；Nginx 请保留上文的保留目录负向前瞻。`go.php` 也会拦截这些保留名，不会跳转。
 
 **Q：自动获取标题不生效？**  
 确认 `curl` 扩展已启用；个别站点会拒绝非浏览器 UA 或返回动态页面，属正常现象，可手动填写标题。

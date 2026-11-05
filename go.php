@@ -2,8 +2,12 @@
 /**
  * AdminURL 短链跳转
  *
- * 路由：/s/{code}  (Apache 由 .htaccess 重写；Nginx 见 README)
- *       ?s={code}  (直连兜底)
+ * 主路由：/{code}          标准根路径短链（默认生成形式）
+ * 拓展路由：/s/{code}       兼容旧链接，始终可访问
+ * 兜底：go.php?s={code}    直连查询参数
+ *
+ * 三种入口最终归一到同一套短码解析流程；系统保留路径名（admin / api / assets 等）
+ * 不会被当作短码，避免与后台、API 和静态目录冲突。
  *
  * 特性：
  *  - UA 屏蔽：命中黑名单的访问直接拒绝，不跳转、不计数
@@ -14,20 +18,31 @@
 require_once __DIR__ . '/includes/bootstrap.php';
 require_once ROOT . '/includes/schema.php';
 
-// 未被访问系统 / 未安装时引导安装
+// 未安装时引导安装
 if (!is_installed()) {
     redirect(base_path('/install/'));
 }
 
-// 获取短码
+// 获取短码：优先查询参数，其次解析请求路径 /{code} 或 /s/{code}
 $code = trim((string)($_GET['s'] ?? ''));
 if ($code === '') {
+    $path = parse_url((string)($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH) ?: '/';
+    if (preg_match('#^/(?:s/)?([A-Za-z0-9]{1,32})/?$#', $path, $m)) {
+        $code = (string)$m[1];
+    }
+}
+
+if ($code === '' || !preg_match('/^[A-Za-z0-9]{1,32}$/', $code)) {
     http_response_code(404);
     exit('Not Found');
 }
 
-// 短码只允许字母数字
-if (!preg_match('/^[A-Za-z0-9]+$/', $code)) {
+// 系统保留路径名不得作为短码（防御 Web 服务器伪静态配置遗漏）
+$reservedCodes = [
+    'admin', 'api', 'assets', 'config', 'data', 'docs', 'includes', 'install',
+    'go', 'index', 'router', 'robots', 'favicon', 's', 'changelog', 'license', 'readme',
+];
+if (in_array(strtolower($code), $reservedCodes, true)) {
     http_response_code(404);
     exit('Not Found');
 }

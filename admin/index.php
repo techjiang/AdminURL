@@ -226,7 +226,7 @@ require __DIR__ . '/_header.php';
                 <div class="kv-row"><span>系统版本</span><strong>v<?= e(ADMINURL_VERSION) ?></strong></div>
                 <div class="kv-row"><span>运行环境</span><strong>PHP <?= e(PHP_VERSION) ?></strong></div>
                 <div class="kv-row"><span>数据库</span><strong>SQLite</strong></div>
-                <div class="kv-row"><span>短链前缀</span><strong class="mono"><?= e(rtrim(base_path('/s/'), '/')) ?>/</strong></div>
+                <div class="kv-row"><span>短链形式</span><strong class="mono"><?= e(rtrim((string)config('base_url', ''), '/') . short_path_prefix() . '{code}') ?></strong></div>
                 <div class="kv-row"><span>跳转方式</span><strong><?= e((string)setting('redirect_type', '302')) ?></strong></div>
                 <div class="kv-row"><span>开放使用</span>
                     <?= (string)setting('public_shorten', '0') === '1' ? '<span class="badge badge-ok">已开启</span>' : '<span class="badge">仅管理员</span>' ?>

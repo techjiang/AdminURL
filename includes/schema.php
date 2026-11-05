@@ -137,6 +137,7 @@ SQL);
         'public_shorten'  => '0',   // 开放使用开关：默认关闭
         'public_register' => '0',   // 开放注册开关：默认关闭
         'redirect_type'   => '302', // 跳转方式：301 / 302
+        'short_path_mode' => 'root',// 短链形态：root = /{code}，s = /s/{code} 兼容拓展
         'auto_title'      => '1',   // 自动抓取标题
         'footer_text'     => '',
     ];

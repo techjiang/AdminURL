@@ -9,7 +9,13 @@
     # 防止访问隐藏文件 / 敏感目录
     RewriteRule ^(?:\.|config/|data/|includes/) - [F,L]
 
-    # 短链路由：/s/{code} -> go.php
+    # 主路由：/{code} -> go.php（标准根路径短链）
+    # 真实文件与目录优先，避免 /admin/、/api/、/assets/ 等被误判为短码
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^([A-Za-z0-9]{3,32})/?$ go.php?s=$1 [L,QSA]
+
+    # 拓展路由：/s/{code} -> go.php（兼容旧链接，始终可用）
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^s/([A-Za-z0-9]{1,32})/?$ go.php?s=$1 [L,QSA]

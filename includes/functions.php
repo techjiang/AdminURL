@@ -439,12 +439,24 @@ function ua_match(string $ua): bool
 }
 
 /**
+ * 短链路径前缀
+ *
+ * 默认使用根路径 /{code}（标准短链形态）；
+ * 管理员可在设置中切换为 /s/{code} 兼容拓展模式，用于沿用旧链接。
+ * 无论生成哪种形式，服务端始终同时解析两种路径。
+ */
+function short_path_prefix(): string
+{
+    return (string)setting('short_path_mode', 'root') === 's' ? '/s/' : '/';
+}
+
+/**
  * 构造完整短链接
  */
 function short_url(string $code): string
 {
     $base = rtrim((string)config('base_url', ''), '/');
-    return $base . '/s/' . ltrim($code, '/');
+    return $base . short_path_prefix() . ltrim($code, '/');
 }
 
 /**

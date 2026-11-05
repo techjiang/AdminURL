@@ -116,7 +116,7 @@ require ROOT . '/includes/templates/header.php';
                 <details class="hero-advanced" <?= $customCode !== '' ? 'open' : '' ?>>
                     <summary><?= icon('settings', 'icon-sm') ?> 自定义短码（可选）</summary>
                     <div class="hero-advanced-body">
-                        <span class="mono"><?= e(rtrim(base_path('/s/'), '/')) ?>/</span>
+                        <span class="mono"><?= e(rtrim((string)config('base_url', ''), '/') . short_path_prefix()) ?></span>
                         <input type="text" name="code" value="<?= e($customCode) ?>" placeholder="例如 mylink" maxlength="32" pattern="[A-Za-z0-9]{3,32}">
                         <span class="form-help">3-32 位字母或数字</span>
                     </div>
