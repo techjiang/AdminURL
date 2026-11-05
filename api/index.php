@@ -166,6 +166,9 @@ if ($route === '/api/v1/links' && $method === 'POST') {
     if ($code !== '' && !preg_match('/^[A-Za-z0-9]{3,32}$/', $code)) {
         api_fail('code 仅支持 3-32 位字母或数字');
     }
+    if ($code !== '' && is_reserved_code($code)) {
+        api_fail('code 是系统保留路径，请换一个', 400);
+    }
     if ($code !== '' && link_exists($code)) {
         api_fail('短码已被占用: ' . $code, 409);
     }
@@ -260,6 +263,9 @@ if ($route === '/api/v1/links/{code}' && $method === 'PUT') {
     }
     if (!preg_match('/^[A-Za-z0-9]{3,32}$/', $newCode)) {
         api_fail('code 仅支持 3-32 位字母或数字');
+    }
+    if (is_reserved_code($newCode)) {
+        api_fail('code 是系统保留路径，请换一个', 400);
     }
     $stmt = db()->prepare('SELECT id FROM links WHERE code = ? AND id != ? LIMIT 1');
     $stmt->execute([$newCode, (int)$row['id']]);

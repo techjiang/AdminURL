@@ -64,6 +64,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'quick_c
             $_SESSION['flash_error'] = '请输入有效的 http/https 链接';
         } elseif ($customCode !== '' && !preg_match('/^[A-Za-z0-9]{3,32}$/', $customCode)) {
             $_SESSION['flash_error'] = '自定义短码仅支持 3-32 位字母或数字';
+        } elseif ($customCode !== '' && is_reserved_code($customCode)) {
+            $_SESSION['flash_error'] = '该短码是系统保留路径，请换一个';
         } elseif ($customCode !== '' && link_exists($customCode)) {
             $_SESSION['flash_error'] = '该短码已被占用，请换一个';
         } else {

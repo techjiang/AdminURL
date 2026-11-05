@@ -42,6 +42,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = '请输入有效的 http/https 链接';
         } elseif ($customCode !== '' && !preg_match('/^[A-Za-z0-9]{3,32}$/', $customCode)) {
             $error = '自定义短码仅支持 3-32 位字母或数字';
+        } elseif ($customCode !== '' && is_reserved_code($customCode)) {
+            $error = '该短码是系统保留路径，请换一个';
         } elseif ($customCode !== '' && link_exists($customCode)) {
             $error = '这个短码已被占用，换一个试试';
         } else {

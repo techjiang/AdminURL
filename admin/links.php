@@ -10,9 +10,14 @@ require_once __DIR__ . '/_init.php';
 $pageTitle = '链接管理';
 $activeNav = 'links';
 
-// 搜索条件提前解析，供操作后的重定向沿用
-$search  = trim((string)($_GET['q'] ?? ''));
-$listUrl = base_path('/admin/links.php' . ($search !== '' ? '?q=' . urlencode($search) : ''));
+// 筛选条件提前解析，供操作后的重定向与导出沿用
+$filter    = link_filter_from_request();
+$search    = $filter['search'];
+$status    = $filter['status'];
+$sort      = $filter['sort'];
+$baseQuery = $filter['query'];
+$extra     = $baseQuery !== '' ? '&' . $baseQuery : '';
+$listUrl   = base_path('/admin/links.php' . ($baseQuery !== '' ? '?' . $baseQuery : ''));
 
 $action = $_GET['action'] ?? '';
 $id = (int)($_GET['id'] ?? 0);
@@ -113,6 +118,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'edit_li
             $_SESSION['edit_error'] = '目标地址必须是有效的 http/https 链接';
         } elseif ($ecode === '' || !preg_match('/^[A-Za-z0-9]{3,32}$/', $ecode)) {
             $_SESSION['edit_error'] = '短码仅支持 3-32 位字母或数字';
+        } elseif (is_reserved_code($ecode)) {
+            $_SESSION['edit_error'] = '该短码是系统保留路径，请换一个';
         } else {
             $stmt = db()->prepare('SELECT id FROM links WHERE code = ? AND id != ? LIMIT 1');
             $stmt->execute([$ecode, $eid]);
@@ -129,7 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'edit_li
                 redirect($listUrl);
             }
         }
-        redirect(base_path('/admin/links.php?action=edit&id=' . $eid));
+        redirect(base_path('/admin/links.php?action=edit&id=' . $eid . $extra));
     }
 }
 
@@ -138,12 +145,9 @@ $page    = max(1, (int)($_GET['p'] ?? 1));
 $perPage = 15;
 $offset  = ($page - 1) * $perPage;
 
-$where  = '';
-$params = [];
-if ($search !== '') {
-    $where  = 'WHERE (code LIKE ? OR url LIKE ? OR title LIKE ?)';
-    $params = ["%$search%", "%$search%", "%$search%"];
-}
+$where  = $filter['where'];
+$params = $filter['params'];
+$order  = $filter['order'];
 
 $stmt = db()->prepare('SELECT COUNT(*) AS c FROM links ' . $where);
 $stmt->execute($params);
@@ -154,12 +158,11 @@ if ($page > $totalPages) {
     $offset = ($page - 1) * $perPage;
 }
 
-$stmt = db()->prepare('SELECT * FROM links ' . $where . ' ORDER BY id DESC LIMIT ? OFFSET ?');
+$stmt = db()->prepare('SELECT * FROM links ' . $where . ' ' . $order . ' LIMIT ? OFFSET ?');
 $stmt->execute([...$params, $perPage, $offset]);
 $links = $stmt->fetchAll();
 
-$exportUrl = base_path('/admin/export.php?_csrf=' . urlencode(csrf_token())
-    . ($search !== '' ? '&q=' . urlencode($search) : ''));
+$exportUrl = base_path('/admin/export.php?_csrf=' . urlencode(csrf_token()) . $extra);
 
 require __DIR__ . '/_header.php';
 ?>
@@ -189,6 +192,26 @@ require __DIR__ . '/_header.php';
             <?php endif; ?>
         </form>
     </div>
+
+    <form method="get" class="filter-bar">
+        <input type="hidden" name="q" value="<?= e($search) ?>">
+        <label for="filter-status">状态</label>
+        <select name="status" id="filter-status">
+            <option value="" <?= $status === '' ? 'selected' : '' ?>>全部状态</option>
+            <option value="1" <?= $status === '1' ? 'selected' : '' ?>>正常</option>
+            <option value="0" <?= $status === '0' ? 'selected' : '' ?>>已停用</option>
+        </select>
+        <label for="filter-sort">排序</label>
+        <select name="sort" id="filter-sort">
+            <option value="" <?= $sort === '' ? 'selected' : '' ?>>最新创建</option>
+            <option value="clicks" <?= $sort === 'clicks' ? 'selected' : '' ?>>点击最多</option>
+            <option value="code" <?= $sort === 'code' ? 'selected' : '' ?>>短码升序</option>
+        </select>
+        <button type="submit" class="btn btn-ghost btn-sm">应用</button>
+        <?php if ($baseQuery !== ''): ?>
+            <a href="<?= e(base_path('/admin/links.php')) ?>" class="btn btn-ghost btn-sm"><?= icon('close', 'icon-sm') ?> 重置筛选</a>
+        <?php endif; ?>
+    </form>
 
     <?php if (count($links) === 0): ?>
         <div class="empty-state">
@@ -268,7 +291,7 @@ require __DIR__ . '/_header.php';
         </form>
 
         <?php if ($totalPages > 1): ?>
-            <?php $qs = $search !== '' ? '&q=' . urlencode($search) : ''; ?>
+            <?php $qs = $extra; ?>
             <div class="pagination">
                 <span class="page-info">共 <?= number_format($total) ?> 条 · 每页 <?= $perPage ?> 条</span>
                 <a class="btn btn-ghost btn-sm <?= $page <= 1 ? 'disabled' : '' ?>"

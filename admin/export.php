@@ -2,25 +2,18 @@
 /**
  * AdminURL 管理后台 - 导出短链接 CSV
  *
- * 支持按链接列表当前的搜索条件导出；使用 GET + CSRF 令牌鉴权。
- * 输出 UTF-8 BOM 便于 Excel 识别中文，并对单元格做公式注入防护。
+ * 与链接列表共用筛选条件（搜索 / 状态 / 排序），保证导出内容与所见一致。
+ * 使用 GET + CSRF 令牌鉴权；UTF-8 BOM 便于 Excel 识别中文，单元格做公式注入防护。
  */
 
 require_once __DIR__ . '/_init.php';
 
-$search = trim((string)($_GET['q'] ?? ''));
-$backUrl = base_path('/admin/links.php' . ($search !== '' ? '?q=' . urlencode($search) : ''));
+$filter  = link_filter_from_request();
+$backUrl = base_path('/admin/links.php' . ($filter['query'] !== '' ? '?' . $filter['query'] : ''));
 
 if (!verify_csrf($_GET['_csrf'] ?? '')) {
     $_SESSION['flash_error'] = '导出链接已过期，请刷新页面后重试';
     redirect($backUrl);
-}
-
-$where  = '';
-$params = [];
-if ($search !== '') {
-    $where  = 'WHERE (code LIKE ? OR url LIKE ? OR title LIKE ?)';
-    $params = ["%$search%", "%$search%", "%$search%"];
 }
 
 /**
@@ -31,15 +24,15 @@ function csv_safe_cell(string $value): string
     return preg_match('/^[=+\-@\t\r]/', $value) === 1 ? "'" . $value : $value;
 }
 
-$countStmt = db()->prepare('SELECT COUNT(*) AS c FROM links ' . $where);
-$countStmt->execute($params);
+$countStmt = db()->prepare('SELECT COUNT(*) AS c FROM links ' . $filter['where']);
+$countStmt->execute($filter['params']);
 $exportCount = (int)$countStmt->fetch()['c'];
 
 log_event('export', '导出短链接 CSV，共 ' . $exportCount . ' 条'
-    . ($search !== '' ? '（筛选：' . mb_substr($search, 0, 50) . '）' : ''));
+    . ($filter['query'] !== '' ? '（筛选：' . mb_substr($filter['query'], 0, 80) . '）' : ''));
 
-$stmt = db()->prepare('SELECT * FROM links ' . $where . ' ORDER BY id DESC');
-$stmt->execute($params);
+$stmt = db()->prepare('SELECT * FROM links ' . $filter['where'] . ' ' . $filter['order']);
+$stmt->execute($filter['params']);
 
 header('Content-Type: text/csv; charset=UTF-8');
 header('Content-Disposition: attachment; filename="adminurl-links-' . date('Ymd-His') . '.csv"');

@@ -23,6 +23,7 @@ $navGroups = [
     '系统' => [
         'api'      => ['API 接口', base_path('/admin/api.php'), 'code'],
         'ua'       => ['UA 屏蔽', base_path('/admin/ua.php'), 'shield'],
+        'logs'     => ['操作日志', base_path('/admin/logs.php'), 'clock'],
         'settings' => ['系统设置', base_path('/admin/settings.php'), 'settings'],
     ],
 ];

@@ -195,4 +195,13 @@ require __DIR__ . '/_header.php';
     </form>
 </div>
 
+<div class="card span-2">
+    <div class="card-head"><h2><?= icon('database') ?> 数据维护</h2></div>
+    <p class="card-desc">下载完整的 SQLite 数据库快照，包含短链接、站点设置、点击统计与操作日志。建议在批量修改或升级前先备份。</p>
+    <div class="btn-row">
+        <a href="<?= e(base_path('/admin/backup.php?_csrf=' . urlencode(csrf_token()))) ?>" class="btn btn-ghost"><?= icon('download', 'icon-sm') ?> 下载数据库备份</a>
+        <a href="<?= e(base_path('/admin/logs.php')) ?>" class="btn btn-ghost"><?= icon('clock', 'icon-sm') ?> 查看操作日志</a>
+    </div>
+</div>
+
 <?php require __DIR__ . '/_footer.php'; ?>

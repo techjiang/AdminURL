@@ -37,11 +37,7 @@ if ($code === '' || !preg_match('/^[A-Za-z0-9]{1,32}$/', $code)) {
 }
 
 // 系统保留路径名不得作为短码（防御 Web 服务器伪静态配置遗漏）
-$reservedCodes = [
-    'admin', 'api', 'assets', 'config', 'data', 'docs', 'includes', 'install',
-    'go', 'index', 'router', 'robots', 'favicon', 's', 'changelog', 'license', 'readme',
-];
-if (in_array(strtolower($code), $reservedCodes, true)) {
+if (is_reserved_code($code)) {
     render_short_error(404, '短链接不存在', '该地址属于系统保留路径，不能作为短链接访问。');
 }
 

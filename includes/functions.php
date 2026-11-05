@@ -132,13 +132,32 @@ function random_short_code(int $length): string
 /**
  * 生成一个在数据库中唯一的短码
  */
+/**
+ * 系统保留短码
+ *
+ * 这些名字与系统目录、入口文件或路由冲突，go.php 会拒绝解析。
+ * 自定义短码必须在创建/编辑时一并拦截，否则会生成永远无法访问的链接。
+ */
+function reserved_codes(): array
+{
+    return [
+        'admin', 'api', 'assets', 'config', 'data', 'docs', 'includes', 'install',
+        'go', 'index', 'router', 'robots', 'favicon', 's', 'changelog', 'license', 'readme',
+        'login', 'register', 'settings', 'migrate', 'static', 'health',
+        'analytics', 'link', 'export', 'backup', 'logs',
+    ];
+}
+
+function is_reserved_code(string $code): bool
+{
+    return in_array(strtolower($code), reserved_codes(), true);
+}
+
 function generate_unique_code(int $length = 5): string
 {
-    // 保留路径，避免与系统路由冲突
-    $reserved = ['admin', 'api', 'assets', 'install', 'login', 'register', 'settings', 'migrate', 'go', 'index', 'docs', 's', 'static', 'robots', 'favicon'];
     do {
         $code = random_short_code($length);
-    } while (in_array(strtolower($code), $reserved, true) || link_exists($code));
+    } while (is_reserved_code($code) || link_exists($code));
     return $code;
 }
 
@@ -457,6 +476,55 @@ function short_url(string $code): string
 {
     $base = rtrim((string)config('base_url', ''), '/');
     return $base . short_path_prefix() . ltrim($code, '/');
+}
+
+/**
+ * 链接列表公共筛选（后台列表与 CSV 导出共用，保证两者数据一致）
+ *
+ * 支持 q 搜索、status 状态筛选（'' / 0 / 1）、sort 排序（默认最新 / clicks / code）。
+ */
+function link_filter_from_request(): array
+{
+    $search = trim((string)($_GET['q'] ?? ''));
+    $status = (string)($_GET['status'] ?? '');
+    if (!in_array($status, ['', '0', '1'], true)) {
+        $status = '';
+    }
+    $sort = (string)($_GET['sort'] ?? '');
+    if (!in_array($sort, ['', 'clicks', 'code'], true)) {
+        $sort = '';
+    }
+
+    $conditions = [];
+    $params = [];
+    if ($search !== '') {
+        $conditions[] = '(code LIKE ? OR url LIKE ? OR title LIKE ?)';
+        array_push($params, "%$search%", "%$search%", "%$search%");
+    }
+    if ($status !== '') {
+        $conditions[] = 'status = ?';
+        $params[] = (int)$status;
+    }
+
+    $where = $conditions !== [] ? 'WHERE ' . implode(' AND ', $conditions) : '';
+    $order = $sort === 'clicks'
+        ? 'ORDER BY clicks DESC, id DESC'
+        : ($sort === 'code' ? 'ORDER BY code ASC, id DESC' : 'ORDER BY id DESC');
+
+    $parts = [];
+    if ($search !== '') { $parts['q'] = $search; }
+    if ($status !== '') { $parts['status'] = $status; }
+    if ($sort !== '')   { $parts['sort'] = $sort; }
+
+    return [
+        'search' => $search,
+        'status' => $status,
+        'sort'   => $sort,
+        'where'  => $where,
+        'params' => $params,
+        'order'  => $order,
+        'query'  => http_build_query($parts),
+    ];
 }
 
 /**
