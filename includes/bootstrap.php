@@ -43,6 +43,7 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once ROOT . '/includes/functions.php';
 require_once ROOT . '/includes/db.php';
 require_once ROOT . '/includes/auth.php';
+require_once ROOT . '/includes/icons.php';
 
 // 安全响应头
 header('X-Frame-Options: SAMEORIGIN');

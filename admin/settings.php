@@ -81,14 +81,20 @@ $siteSettings = [
 require __DIR__ . '/_header.php';
 ?>
 
-<div class="settings-grid">
+<div class="page-head">
+    <div>
+        <h2>系统设置</h2>
+        <p>站点信息、访问策略与账号安全，改动保存后立即生效。</p>
+    </div>
+</div>
 
-    <!-- 站点设置 -->
-    <div class="card">
-        <div class="card-head"><h2>站点设置</h2></div>
-        <form method="post" class="settings-form" autocomplete="off">
-            <?= csrf_field() ?>
-            <input type="hidden" name="form" value="site_settings">
+<form method="post" autocomplete="off">
+    <?= csrf_field() ?>
+    <input type="hidden" name="form" value="site_settings">
+    <div class="settings-grid">
+        <div class="card">
+            <div class="card-head"><h2><?= icon('globe') ?> 站点信息</h2></div>
+            <p class="card-desc">这些信息会展示在首页、登录页与浏览器标签上。</p>
 
             <div class="form-group">
                 <label for="site_name">站点名称</label>
@@ -101,80 +107,78 @@ require __DIR__ . '/_header.php';
             <div class="form-group">
                 <label for="redirect_type">跳转方式</label>
                 <select name="redirect_type" id="redirect_type">
-                    <option value="302" <?= $siteSettings['redirect_type'] === '302' ? 'selected' : '' ?>>302 临时跳转（推荐）</option>
-                    <option value="301" <?= $siteSettings['redirect_type'] === '301' ? 'selected' : '' ?>>301 永久跳转（利于 SEO）</option>
+                    <option value="302" <?= $siteSettings['redirect_type'] === '302' ? 'selected' : '' ?>>302 临时跳转（推荐，便于随时改目标）</option>
+                    <option value="301" <?= $siteSettings['redirect_type'] === '301' ? 'selected' : '' ?>>301 永久跳转（浏览器会缓存，利于 SEO）</option>
                 </select>
             </div>
-            <div class="form-group">
-                <label class="switch-row">
-                    <input type="checkbox" name="auto_title" <?= $siteSettings['auto_title'] === '1' ? 'checked' : '' ?>>
-                    <span class="switch"></span>
-                    <span>创建链接时自动抓取标题</span>
-                </label>
-            </div>
-            <button type="submit" class="btn btn-primary">保存设置</button>
-        </form>
-    </div>
+            <label class="switch-row">
+                <input type="checkbox" name="auto_title" <?= $siteSettings['auto_title'] === '1' ? 'checked' : '' ?>>
+                <span class="switch"></span>
+                <span>创建链接时自动抓取页面标题</span>
+            </label>
+        </div>
 
-    <!-- 开放使用 -->
-    <div class="card">
-        <div class="card-head"><h2>开放使用</h2></div>
-        <p class="card-desc">默认仅登录管理员可使用本系统。开启后将向公众开放对应能力。</p>
-        <form method="post" class="settings-form">
-            <?= csrf_field() ?>
-            <input type="hidden" name="form" value="site_settings">
+        <div class="card">
+            <div class="card-head"><h2><?= icon('shield') ?> 访问与开放</h2></div>
+            <p class="card-desc">默认仅管理员可使用本系统。开启后将向公众开放对应能力。</p>
 
-            <div class="form-group">
+            <div class="settings-group">
                 <label class="switch-row">
                     <input type="checkbox" name="public_shorten" <?= $siteSettings['public_shorten'] === '1' ? 'checked' : '' ?>>
                     <span class="switch"></span>
                     <span>开放公众缩短链接</span>
                 </label>
-                <p class="form-help">开启后未登录访客可在首页直接生成短链</p>
+                <p class="form-help">开启后，未登录访客可在首页直接生成并访问短链。</p>
             </div>
-            <div class="form-group">
+            <div class="settings-group">
                 <label class="switch-row">
                     <input type="checkbox" name="public_register" <?= $siteSettings['public_register'] === '1' ? 'checked' : '' ?>>
                     <span class="switch"></span>
                     <span>开放用户注册</span>
                 </label>
-                <p class="form-help">开启后访客可自行注册账号（不推荐公网开启）</p>
+                <p class="form-help">开启后访客可自行注册账号，公网部署不建议开启。</p>
             </div>
-            <button type="submit" class="btn btn-primary">保存开关</button>
-        </form>
 
-        <div class="notice-box">
-            <p><strong>安全提示：</strong>公网部署时建议保持两个开关均关闭，仅管理员使用。</p>
+            <div class="notice-box">
+                <p><?= icon('info', 'icon-sm') ?> 安全提示：公网部署时建议保持两个开关均关闭，仅管理员使用。</p>
+            </div>
         </div>
     </div>
 
-    <!-- 账号与密码 -->
-    <div class="card">
-        <div class="card-head"><h2>账号与密码</h2></div>
-        <form method="post" class="settings-form" autocomplete="off">
-            <?= csrf_field() ?>
-            <input type="hidden" name="form" value="account">
-
-            <div class="form-group">
-                <label for="acc-username">登录用户名</label>
-                <input type="text" id="acc-username" name="username" value="<?= e($adminUser['username'] ?? '') ?>" maxlength="32" required>
-            </div>
-            <div class="form-group">
-                <label for="acc-current">当前密码</label>
-                <input type="password" id="acc-current" name="current_password" autocomplete="current-password" required>
-            </div>
-            <div class="form-group">
-                <label for="acc-new">新密码（留空则不变）</label>
-                <input type="password" id="acc-new" name="new_password" autocomplete="new-password" minlength="8">
-            </div>
-            <div class="form-group">
-                <label for="acc-new2">确认新密码</label>
-                <input type="password" id="acc-new2" name="new_password2" autocomplete="new-password">
-            </div>
-            <button type="submit" class="btn btn-primary">更新账号</button>
-        </form>
+    <div class="btn-row" style="margin:0 0 20px">
+        <button type="submit" class="btn btn-primary"><?= icon('check', 'icon-sm') ?> 保存设置</button>
+        <span class="muted" style="font-size:12.5px">以上两项设置会一起保存</span>
     </div>
+</form>
 
+<div class="card span-2">
+    <div class="card-head">
+        <h2><?= icon('lock') ?> 账号安全</h2>
+        <span class="badge">当前用户：<?= e($adminUser['username'] ?? '') ?></span>
+    </div>
+    <form method="post" class="settings-form" autocomplete="off" style="max-width:520px">
+        <?= csrf_field() ?>
+        <input type="hidden" name="form" value="account">
+
+        <div class="form-group">
+            <label for="acc-username">登录用户名</label>
+            <input type="text" id="acc-username" name="username" value="<?= e($adminUser['username'] ?? '') ?>" maxlength="32" required>
+        </div>
+        <div class="form-group">
+            <label for="acc-current">当前密码</label>
+            <input type="password" id="acc-current" name="current_password" autocomplete="current-password" required>
+            <p class="form-help">修改任何信息都需要验证当前密码</p>
+        </div>
+        <div class="form-group">
+            <label for="acc-new">新密码（留空则不变）</label>
+            <input type="password" id="acc-new" name="new_password" autocomplete="new-password" minlength="8">
+        </div>
+        <div class="form-group">
+            <label for="acc-new2">确认新密码</label>
+            <input type="password" id="acc-new2" name="new_password2" autocomplete="new-password">
+        </div>
+        <button type="submit" class="btn btn-primary"><?= icon('key', 'icon-sm') ?> 更新账号</button>
+    </form>
 </div>
 
 <?php require __DIR__ . '/_footer.php'; ?>

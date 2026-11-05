@@ -62,23 +62,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'edit_li
     if (!verify_csrf($_POST['_csrf'] ?? null)) {
         $_SESSION['flash_error'] = '请求已过期，请刷新后重试';
     } else {
-        $eid = (int)($_POST['id'] ?? 0);
-        $eurl = trim((string)($_POST['url'] ?? ''));
+        $eid    = (int)($_POST['id'] ?? 0);
+        $eurl   = trim((string)($_POST['url'] ?? ''));
         $etitle = trim((string)($_POST['title'] ?? ''));
-        $ecode = trim((string)($_POST['code'] ?? ''));
+        $ecode  = trim((string)($_POST['code'] ?? ''));
 
         if (!is_valid_url($eurl)) {
             $_SESSION['flash_error'] = '目标地址必须是有效的 http/https 链接';
         } elseif ($ecode === '' || !preg_match('/^[A-Za-z0-9]{3,32}$/', $ecode)) {
             $_SESSION['flash_error'] = '短码仅支持 3-32 位字母或数字';
         } else {
-            // 短码唯一性检查（排除自身）
             $stmt = db()->prepare('SELECT id FROM links WHERE code = ? AND id != ? LIMIT 1');
             $stmt->execute([$ecode, $eid]);
             if ($stmt->fetch()) {
                 $_SESSION['flash_error'] = '该短码已被占用，请换一个';
             } else {
-                // 标题为空时尝试重新抓取
                 if ($etitle === '' && (string)setting('auto_title', '1') === '1') {
                     $etitle = fetch_page_title($eurl, (int)config('fetch_timeout', 6));
                 }
@@ -122,21 +120,33 @@ $links = $stmt->fetchAll();
 require __DIR__ . '/_header.php';
 ?>
 
+<div class="page-head">
+    <div>
+        <h2>全部链接</h2>
+        <p>管理站点中的 <?= number_format($total) ?> 条短链接，支持搜索、编辑与启停。</p>
+    </div>
+    <a href="<?= e(base_path('/admin/#quick-create')) ?>" class="btn btn-primary"><?= icon('plus', 'icon-sm') ?> 新建短链</a>
+</div>
+
 <div class="card">
     <div class="card-head">
-        <h2>全部短链接 <span class="count-badge"><?= number_format($total) ?></span></h2>
+        <h2><?= icon('layers') ?> 链接列表 <span class="count-badge"><?= number_format($total) ?></span></h2>
         <form method="get" class="search-form">
-            <input type="search" name="q" placeholder="搜索短码 / 链接 / 标题" value="<?= e($search) ?>">
-            <button type="submit" class="btn btn-ghost">搜索</button>
+            <div class="search-box">
+                <?= icon('search') ?>
+                <input type="search" name="q" placeholder="搜索短码 / 链接 / 标题（Ctrl + K）" value="<?= e($search) ?>">
+            </div>
+            <button type="submit" class="btn btn-ghost btn-sm">搜索</button>
             <?php if ($search !== ''): ?>
-                <a href="<?= e(base_path('/admin/links.php')) ?>" class="btn btn-ghost btn-sm">清除</a>
+                <a href="<?= e(base_path('/admin/links.php')) ?>" class="btn btn-ghost btn-sm"><?= icon('close', 'icon-sm') ?> 清除</a>
             <?php endif; ?>
         </form>
     </div>
 
     <?php if (count($links) === 0): ?>
         <div class="empty-state">
-            <p><?= $search !== '' ? '没有找到匹配的短链接' : '还没有短链接' ?></p>
+            <?= icon($search !== '' ? 'search' : 'link', 'icon-xl') ?>
+            <p><?= $search !== '' ? '没有找到匹配的短链接，换个关键词试试' : '还没有短链接，去仪表盘创建第一条吧' ?></p>
         </div>
     <?php else: ?>
         <div class="table-wrap">
@@ -155,11 +165,11 @@ require __DIR__ . '/_header.php';
                 <tbody>
                 <?php foreach ($links as $row): ?>
                     <tr>
-                        <td class="mono">
-                            <a href="<?= e(short_url($row['code'])) ?>" target="_blank" rel="noopener"><?= e($row['code']) ?></a>
-                            <button type="button" class="link-copy" data-copy-url="<?= e(short_url($row['code'])) ?>">📋</button>
+                        <td>
+                            <a href="<?= e(short_url($row['code'])) ?>" target="_blank" rel="noopener" class="code-chip"><?= e($row['code']) ?></a>
+                            <button type="button" class="link-copy" data-copy-url="<?= e(short_url($row['code'])) ?>" title="复制短链"><?= icon('copy', 'icon-sm') ?></button>
                         </td>
-                        <td class="td-title" title="<?= e($row['url']) ?>"><?= e(mb_strlen($row['title']) > 0 ? $row['title'] : '—') ?></td>
+                        <td class="td-title" title="<?= e($row['url']) ?>"><?= e($row['title'] !== '' ? $row['title'] : '—') ?></td>
                         <td class="td-url" title="<?= e($row['url']) ?>">
                             <a href="<?= e($row['url']) ?>" target="_blank" rel="noopener nofollow"><?= e(mb_substr($row['url'], 0, 55)) ?></a>
                         </td>
@@ -168,18 +178,19 @@ require __DIR__ . '/_header.php';
                             <?php if ((int)$row['status'] === 1): ?>
                                 <span class="badge badge-ok">正常</span>
                             <?php else: ?>
-                                <span class="badge badge-warn">停用</span>
+                                <span class="badge badge-warn">已停用</span>
                             <?php endif; ?>
                         </td>
                         <td class="td-time"><?= e($row['created_at']) ?></td>
                         <td class="td-actions">
-                            <a href="<?= e(base_path('/admin/links.php?action=edit&id=' . (int)$row['id'])) ?>" class="btn btn-ghost btn-sm">编辑</a>
+                            <a href="<?= e(base_path('/admin/links.php?action=edit&id=' . (int)$row['id'])) ?>"
+                               class="btn btn-ghost btn-sm" title="编辑"><?= icon('edit', 'icon-sm') ?></a>
                             <a href="<?= e(base_path('/admin/links.php?action=toggle&id=' . (int)$row['id'] . '&_csrf=' . urlencode(csrf_token()))) ?>"
-                               class="btn btn-ghost btn-sm" onclick="return confirm('确定<?= (int)$row['status'] === 1 ? '停用' : '启用' ?>该链接吗？')">
-                                <?= (int)$row['status'] === 1 ? '停用' : '启用' ?>
-                            </a>
+                               class="btn btn-ghost btn-sm" title="<?= (int)$row['status'] === 1 ? '停用' : '启用' ?>"
+                               onclick="return confirm('确定<?= (int)$row['status'] === 1 ? '停用' : '启用' ?>该链接吗？')"><?= icon('power', 'icon-sm') ?></a>
                             <a href="<?= e(base_path('/admin/links.php?action=delete&id=' . (int)$row['id'] . '&_csrf=' . urlencode(csrf_token()))) ?>"
-                               class="btn btn-danger btn-sm" onclick="return confirm('删除后不可恢复，确定删除吗？')">删除</a>
+                               class="btn btn-danger btn-sm" title="删除"
+                               onclick="return confirm('删除后不可恢复，确定删除吗？')"><?= icon('trash', 'icon-sm') ?></a>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -188,15 +199,14 @@ require __DIR__ . '/_header.php';
         </div>
 
         <?php if ($totalPages > 1): ?>
+            <?php $qs = $search !== '' ? '&q=' . urlencode($search) : ''; ?>
             <div class="pagination">
-                <?php
-                $qs = $search !== '' ? '&q=' . urlencode($search) : '';
-                $prev = max(1, $page - 1);
-                $next = min($totalPages, $page + 1);
-                ?>
-                <a class="btn btn-ghost btn-sm <?= $page <= 1 ? 'disabled' : '' ?>" href="<?= e(base_path('/admin/links.php?p=' . $prev . $qs)) ?>">上一页</a>
-                <span class="page-info">第 <?= $page ?> / <?= $totalPages ?> 页</span>
-                <a class="btn btn-ghost btn-sm <?= $page >= $totalPages ? 'disabled' : '' ?>" href="<?= e(base_path('/admin/links.php?p=' . $next . $qs)) ?>">下一页</a>
+                <span class="page-info">共 <?= number_format($total) ?> 条 · 每页 <?= $perPage ?> 条</span>
+                <a class="btn btn-ghost btn-sm <?= $page <= 1 ? 'disabled' : '' ?>"
+                   href="<?= e(base_path('/admin/links.php?p=' . max(1, $page - 1) . $qs)) ?>"><?= icon('arrow-left', 'icon-sm') ?> 上一页</a>
+                <span class="page-info"><?= $page ?> / <?= $totalPages ?></span>
+                <a class="btn btn-ghost btn-sm <?= $page >= $totalPages ? 'disabled' : '' ?>"
+                   href="<?= e(base_path('/admin/links.php?p=' . min($totalPages, $page + 1) . $qs)) ?>">下一页 <?= icon('arrow-right', 'icon-sm') ?></a>
             </div>
         <?php endif; ?>
     <?php endif; ?>
@@ -204,10 +214,10 @@ require __DIR__ . '/_header.php';
 
 <?php if ($editRow): ?>
 <div class="modal-backdrop" id="edit-modal">
-    <div class="modal">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="编辑短链接">
         <div class="modal-head">
-            <h2>编辑短链接</h2>
-            <button type="button" class="modal-close" data-close=".modal-backdrop" aria-label="关闭">×</button>
+            <h2><?= icon('edit') ?> 编辑短链接</h2>
+            <button type="button" class="modal-close" data-close=".modal-backdrop" aria-label="关闭"><?= icon('close', 'icon-sm') ?></button>
         </div>
         <form method="post" action="<?= e(base_path('/admin/links.php')) ?>" class="modal-body" autocomplete="off">
             <?= csrf_field() ?>
@@ -229,7 +239,6 @@ require __DIR__ . '/_header.php';
                 <p class="form-help">留空保存时将自动重新抓取标题</p>
             </div>
 
-            <!-- 编辑失败时回显错误 -->
             <?php if (!empty($_SESSION['flash_error']) && ($_GET['action'] ?? '') === 'edit'): ?>
                 <p class="form-error"><?= e($_SESSION['flash_error']) ?></p>
                 <?php unset($_SESSION['flash_error']); ?>
@@ -237,7 +246,7 @@ require __DIR__ . '/_header.php';
 
             <div class="modal-actions">
                 <button type="button" class="btn btn-ghost" data-close=".modal-backdrop">取消</button>
-                <button type="submit" class="btn btn-primary">保存修改</button>
+                <button type="submit" class="btn btn-primary"><?= icon('check', 'icon-sm') ?> 保存修改</button>
             </div>
         </form>
     </div>

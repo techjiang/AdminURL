@@ -22,3 +22,8 @@ Thumbs.db
 # 编译 / 依赖目录（本项目无需 Composer，保留以防未来引入）
 vendor/
 node_modules/
+
+# 本地打包产物 / 浏览器自动化产物 / 临时检查脚本（不入库）
+*.zip
+.playwright-cli/
+data/_*

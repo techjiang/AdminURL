@@ -60,47 +60,53 @@ $rules = db()->query('SELECT * FROM ua_blacklist ORDER BY id DESC')->fetchAll();
 require __DIR__ . '/_header.php';
 ?>
 
+<div class="page-head">
+    <div>
+        <h2>UA 屏蔽</h2>
+        <p>命中规则的 User-Agent 访问短链时返回 403，且不计入点击统计。</p>
+    </div>
+</div>
+
 <div class="card">
-    <div class="card-head"><h2>屏蔽规则</h2></div>
+    <div class="card-head">
+        <h2><?= icon('shield') ?> 屏蔽规则</h2>
+        <span class="count-badge"><?= count($rules) ?></span>
+    </div>
     <p class="card-desc">
-        命中规则的 User-Agent 访问短链时将返回 403，且不计入点击统计。
         支持模糊匹配：填 <code>python-requests</code> 匹配包含该串的 UA；填 <code>*bot*</code> 使用通配符。
     </p>
 
-    <form method="post" class="inline-form" autocomplete="off">
+    <form method="post" class="inline-form" autocomplete="off" style="margin-bottom:18px">
         <?= csrf_field() ?>
         <input type="hidden" name="form" value="add_ua">
         <div class="input-wrap">
             <input type="text" name="pattern" placeholder="如 python-requests 或 *bot*" required maxlength="200">
             <input type="text" name="remark" class="code-input" placeholder="备注（可选）" maxlength="200">
-            <button type="submit" class="btn btn-primary">添加规则</button>
+            <button type="submit" class="btn btn-primary"><?= icon('plus', 'icon-sm') ?> 添加规则</button>
         </div>
     </form>
 
     <?php if (count($rules) === 0): ?>
-        <div class="empty-state"><p>暂无屏蔽规则，全部 UA 均可正常访问</p></div>
+        <div class="empty-state">
+            <?= icon('shield', 'icon-xl') ?>
+            <p>暂无屏蔽规则，全部 UA 均可正常访问</p>
+        </div>
     <?php else: ?>
         <div class="table-wrap">
             <table class="data-table">
                 <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>匹配串</th>
-                    <th>备注</th>
-                    <th>添加时间</th>
-                    <th class="th-actions">操作</th>
-                </tr>
+                <tr><th>ID</th><th>匹配串</th><th>备注</th><th>添加时间</th><th class="th-actions">操作</th></tr>
                 </thead>
                 <tbody>
                 <?php foreach ($rules as $r): ?>
                     <tr>
-                        <td>#<?= (int)$r['id'] ?></td>
-                        <td class="mono"><?= e($r['pattern']) ?></td>
+                        <td class="mono muted">#<?= (int)$r['id'] ?></td>
+                        <td><span class="code-chip"><?= e($r['pattern']) ?></span></td>
                         <td><?= e($r['remark'] !== '' ? $r['remark'] : '—') ?></td>
                         <td class="td-time"><?= e($r['created_at']) ?></td>
                         <td class="td-actions">
                             <a href="<?= e(base_path('/admin/ua.php?action=delete&id=' . (int)$r['id'] . '&_csrf=' . urlencode(csrf_token()))) ?>"
-                               class="btn btn-danger btn-sm" onclick="return confirm('确定删除该规则吗？')">删除</a>
+                               class="btn btn-danger btn-sm" onclick="return confirm('确定删除该规则吗？')"><?= icon('trash', 'icon-sm') ?> 删除</a>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -111,23 +117,22 @@ require __DIR__ . '/_header.php';
 </div>
 
 <div class="card">
-    <div class="card-head"><h2>UA 调试工具</h2></div>
+    <div class="card-head"><h2><?= icon('search') ?> UA 调试工具</h2></div>
+    <p class="card-desc">粘贴一段 User-Agent，立刻验证它是否会命中当前屏蔽规则。</p>
     <form method="post" class="inline-form" autocomplete="off">
         <?= csrf_field() ?>
         <input type="hidden" name="form" value="test_ua">
         <div class="input-wrap">
-            <input type="text" name="test_ua" placeholder="粘贴一个 User-Agent 测试是否命中屏蔽" required maxlength="500">
-            <button type="submit" class="btn btn-ghost">测试</button>
+            <input type="text" name="test_ua" placeholder="Mozilla/5.0 ..." required maxlength="500">
+            <button type="submit" class="btn btn-ghost"><?= icon('bolt', 'icon-sm') ?> 测试</button>
         </div>
     </form>
 
     <?php if ($testResult !== null): ?>
         <div class="result-card <?= $testResult ? 'warn' : 'success' ?>">
-            <p>
-                <?= $testResult
-                    ? '⛔ 该 UA 命中了屏蔽规则，将被拒绝访问且不计数'
-                    : '✅ 该 UA 未命中任何屏蔽规则，可正常访问' ?>
-            </p>
+            <p><?= $testResult
+                ? icon('alert', 'icon-sm') . ' 该 UA 命中了屏蔽规则，将被拒绝访问且不计数'
+                : icon('check', 'icon-sm') . ' 该 UA 未命中任何屏蔽规则，可正常访问' ?></p>
         </div>
     <?php endif; ?>
 </div>

@@ -174,4 +174,4 @@ php -S 0.0.0.0:8000 router.php
 停止写入后复制 `data/adminurl.db` 即可。新环境走一遍安装流程，再用新库替换（或直接放回 `data/` 并确保 `config.php` 的 `db_file` 指向一致）。
 
 **Q：忘记管理员密码？**  
-在数据库中为 `users` 表对应账号重新写入密码哈希（需使用与系统一致的 Argon2id/bcrypt 算法，建议通过临时 PHP 脚本调用 `password_hash()` 生成后 UPDATE）。
+密码使用 Argon2id 单向哈希，无法找回原密码，只能重置。参见 [README「管理员账号与忘记密码」](../README.md)，用临时 PHP 脚本调用 `update_user()` 生成新密码（用完立即删除脚本）。

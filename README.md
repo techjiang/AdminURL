@@ -2,11 +2,12 @@
 
 > 同一个世界，同一个互联网！
 
-**AdminURL** 是一个面向管理员的开源短链接系统：私密、安全、好看。默认只有登录的管理员可以使用，需要对外开放时一键开启。基于 PHP + SQLite 构建，零外部依赖，部署即是上线。
+**AdminURL** 是一个自托管的开源短链接系统：轻量、私密、好看。默认只有登录的管理员可以使用，需要对外开放时一键开启。基于 PHP + SQLite 构建，零外部依赖、无前端构建链，部署即是上线。
 
 - **作者**：[科技酱](https://www.asoe.cn)
-- **文档**：https://docs.asoe.cn
-- **GitHub**：https://github.com/techjiang/
+- **仓库**：https://github.com/techjiang/AdminURL
+- **文档**：https://docs.asoe.cn · [部署指南](docs/DEPLOYMENT.md)
+- **协议**：[MIT](LICENSE)
 
 ---
 
@@ -14,15 +15,18 @@
 
 | 功能 | 说明 |
 | --- | --- |
-| 短链接生成 | 长链接一键转为短链接，支持自定义别名（3-32 位字母数字） |
+| 短链接生成 | 长链接一键转为短链接，支持自定义短码（3-32 位字母数字） |
 | 链接管理 | 列表、搜索、分页、编辑、启用/停用、删除，统计一目了然 |
+| 数据看板 | 近 14 天创建趋势图、核心统计卡、运行状态与最近链接 |
+| 深浅主题 | 浅色 / 深色一键切换，可跟随系统并记忆偏好 |
+| 响应式界面 | 桌面侧栏、移动抽屉、全站内联 SVG 图标，无任何 CDN 依赖 |
 | 延迟计数 | 点击量先写入缓冲表，按阈值 / 间隔批量合并，高并发下不卡库 |
-| 自动获取标题 | 添加链接时自动抓取页面标题，也可留空保存时再抓（内置防 SSRF） |
+| 自动获取标题 | 添加链接时自动抓取页面标题，也可留空保存时再抓 |
 | UA 屏蔽 | 自定义屏蔽 User-Agent，命中即返回 403 且不计数，支持通配符 |
-| 数据迁移 | 一键导入 YOURLS 数据（CSV / 直接连 MySQL），防重复、回填点击量 |
+| 数据迁移 | 粘贴 YOURLS 的 CSV 或 SQL 导出内容，防重复并回填点击量 |
 | 完整 API | REST 接口 + 令牌鉴权 + 限流，方便二次开发与集成 |
 | 私密可控 | 默认仅管理员可用；「开放使用」「开放注册」均为独立开关，默认关闭 |
-| 安全加固 | Argon2id 密码哈希、CSRF 防护、登录限速锁定、会话硬化、定时令牌吊销 |
+| 安全加固 | Argon2id 密码哈希、CSRF 防护、登录限速锁定、会话硬化、令牌吊销 |
 
 ## 🧱 技术栈
 
@@ -43,6 +47,15 @@
 - `openssl`（安全 / Argon2id 可用时优先使用）
 - `mbstring`（中文处理）
 
+### 获取代码
+
+```bash
+git clone https://github.com/techjiang/AdminURL.git
+cd AdminURL
+```
+
+也可以下载 Releases 源码包，解压到站点根目录。
+
 ### 安装步骤
 
 1. **下载代码**，将 `AdminURL` 目录放到 Web 根目录（如 Apache 的 `htdocs`、Nginx 站点根目录）。
@@ -50,6 +63,23 @@
 3. **访问安装向导**：浏览器打开 `https://你的域名/install/`，按提示填写站点名称、站点地址（不带结尾斜杠）、管理员账号密码。
 4. **安装完成**：系统自动生成 `config/config.php` 并写入随机密钥，初始化数据库。点击「进入管理后台」即可登录使用。
 5. **安全提示**：正式上线前**删除 `install` 目录**，防止未授权重装。
+
+### 管理员账号与忘记密码
+
+**本项目没有默认账号，也没有默认密码。** 用户名和密码都在安装向导第 3 步由安装者自行填写，密码使用 Argon2id 单向哈希存储，任何人（包括开发者）都无法从数据库中反查出原密码，只能重置。
+
+- 后台入口：`/admin/login.php`
+- 忘记密码后改密码（需先登录）：`系统设置 → 账号安全`
+- 完全忘记密码时，可在项目根目录临时新建 `reset-admin.php`，执行后立刻删除：
+
+```php
+<?php
+require_once __DIR__ . '/includes/bootstrap.php';
+var_dump(update_user(1, 'admin', 'YourNewPass123')); // 依次：用户 ID、用户名、新密码（至少 8 位）
+db()->exec('DELETE FROM login_failures');            // 顺带清除登录失败锁定
+```
+
+运行 `php reset-admin.php`，看到 `bool(true)` 即重置成功。若连用户名也忘了，可先用 `SELECT id, username FROM users;` 查询。只有在不需要保留任何数据时，才考虑删除 `config/config.php` 与 `data/adminurl.db` 后重新运行安装向导（**会清空所有短链**）。
 
 ### 演示（本地开发）
 
@@ -59,7 +89,7 @@
 php -S 0.0.0.0:8000 router.php
 ```
 
-然后访问 `http://127.0.0.1:8000/install/` 完成安装。
+然后访问 `http://127.0.0.1:8000/install/` 完成安装（短链路由由 `router.php` 模拟）。
 
 ## ⚙️ 配置说明
 
@@ -79,14 +109,14 @@ php -S 0.0.0.0:8000 router.php
 | `api_rate_limit` | `300` | 单 IP 每分钟 API 请求上限 |
 | `api_rate_token_limit` | `120` | 单令牌每分钟 API 请求上限 |
 
-站点级开关（`后台 → 设置`，默认关闭）：
+站点级开关（`后台 → 系统设置 → 访问与开放`，默认关闭）：
 
-- **开放使用**：关闭时，未登录用户访问短链会跳转登录页；开启后任何人可访问短链。
-- **开放注册**：关闭时注册功能隐藏；开启后访客可自助注册普通账号。
+- **开放公众缩短链接**：关闭时，未登录用户访问首页会跳转登录页；开启后任何人可在首页生成并访问短链。
+- **开放用户注册**：关闭时注册功能提示未开放；开启后访客可自助注册。
 
 ## 🔌 API 文档
 
-BASE：`https://你的域名/api/v1`
+BASE：`https://your.domain/api/v1`
 
 鉴权二选一：
 
@@ -96,7 +126,7 @@ Authorization: Bearer <token>
 ?access_token=<token>
 ```
 
-令牌在 `后台 → API 令牌` 创建，仅显示一次，请妥善保存；支持随时吊销。
+令牌在 `后台 → API 接口` 创建，仅显示一次，请妥善保存；支持随时吊销。
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
@@ -112,45 +142,40 @@ Authorization: Bearer <token>
 示例：
 
 ```bash
-curl -X POST https://your.domain/api/v1/links \
-  -H "Authorization: Bearer TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://example.com/very/long/path"}'
-
-# {"ok":true,"data":{"code":"aB3x9","short_url":"https://your.domain/s/aB3x9","url":"https://example.com/very/long/path",...}}
+curl -X POST https://your.domain/api/v1/links -H "Authorization: Bearer TOKEN" -H "Content-Type: application/json" -d '{"url":"https://example.com/very/long/path"}'
 ```
 
-> 完整参数与错误码见 `后台 → API 令牌 → 接口文档`。
+> 完整参数与错误码见 `后台 → API 接口 → 接口文档`。
 
 ## 🔐 安全设计
 
-- 密码使用 **Argon2id**（不可用则回退 bcrypt）哈希存储，绝不明文。
+- 密码使用 **Argon2id** 哈希存储，绝不明文。
 - 所有写操作均有 **CSRF Token** 校验，安装流程同样受保护。
 - 登录失败连续 5 次锁定 10 分钟，防爆破。
 - 会话 Cookie 启用 `HttpOnly`、`SameSite`，敏感操作校验会话指纹。
-- 自动抓取标题做了 **SSRF 防护**（仅允许 http/https、拒绝内网 / 保留地址）。
 - `data/`（含数据库）、`config/`、`includes/` 均被 Web 层禁止访问。
 - API 错误统一为 JSON（401 / 404 / 405 / 409 / 429），不泄露实现细节。
 
 ## 📦 从 YOURLS 迁移
 
-后台 → 数据迁移，支持两种方式：
+后台 → 数据迁移，支持两种粘贴导入方式：
 
-1. **CSV 导入**：导出 YOURLS 数据为 CSV（列序 `keyword,url,title,clicks`）后上传。
-2. **MySQL 直连**：填写 YOURLS 的数据库连接信息，自动读取 `yourls_url` 表并映射导入。
+1. **CSV**：每行 `短码,目标地址,标题,点击数`，首行可带表头 `keyword,url,title,clicks`。
+2. **SQL 导出**：粘贴 phpMyAdmin 导出的 YOURLS `urls` 表 INSERT 语句。
 
-迁移自动跳过重复短码，导入后可保留原有点击量。
+短码已存在的条目会自动跳过（不覆盖），导入时可选自动抓取缺失标题，并回填原有点击量。迁移历史在页面下方留存。
 
 ## 🗂 目录结构
 
 ```
 AdminURL/
-├── admin/            # 管理后台（登录、链接管理、设置、迁移、UA、API）
+├── admin/            # 管理后台（登录、仪表盘、链接、设置、迁移、UA、API）
 ├── api/              # REST API
-├── assets/           # CSS / JS / 图标
-├── config/           # 配置（config.php 由安装生成，勿上传到公开仓库）
-├── data/             # SQLite 数据库（运行时生成）
-├── includes/         # 核心库（数据库、认证、函数、Schema、模板）
+├── assets/           # CSS / JS / SVG 图标（无外部依赖）
+├── config/           # config.example.php（config.php 由安装生成，不入库）
+├── data/             # SQLite 数据库（运行时生成，不入库）
+├── docs/             # 部署指南
+├── includes/         # 核心库（数据库、认证、函数、Schema、图标、模板）
 ├── install/          # 安装向导（上线后删除）
 ├── go.php            # 短链跳转入口
 ├── index.php         # 首页
@@ -160,8 +185,9 @@ AdminURL/
 
 ## ❤️ 支持与反馈
 
-- 技术文档（博客）：https://docs.asoe.cn
-- GitHub：https://github.com/techjiang/
+- 官网：https://www.asoe.cn
+- GitHub：https://github.com/techjiang/AdminURL
+- 技术文档：https://docs.asoe.cn
 - 哔哩哔哩：https://space.bilibili.com/1768832152
 - 玲珑社区：https://forums.asoe.cn/
 - 邮箱：official@tech.asoe.cn
@@ -169,6 +195,6 @@ AdminURL/
 - QQ 群②：474819022
 - QQ 群③：631167288
 
-## 📄 License
+## 📄 开源协议
 
-[MIT](LICENSE) © 科技酱
+本项目基于 [MIT License](LICENSE) 开源，可自由使用、修改与商用。

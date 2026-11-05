@@ -14,14 +14,12 @@ if (!is_installed()) {
     redirect(base_path('/install/'));
 }
 
-// 已登录用户直接进后台
 if (is_logged_in()) {
     redirect(base_path('/admin/'));
 }
 
 $publicShorten = (string)setting('public_shorten', '0') === '1';
 
-// 未开放且未登录 → 登录页
 if (!$publicShorten) {
     redirect(base_path('/admin/login.php'));
 }
@@ -31,16 +29,23 @@ $siteDesc = (string)setting('site_desc', '同一个世界，同一个互联网�
 $error    = '';
 $shortUrl = '';
 $longUrl  = '';
+$customCode = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf($_POST['_csrf'] ?? null)) {
         $error = '请求已过期，请刷新页面后重试';
     } else {
-        $longUrl = trim((string)($_POST['url'] ?? ''));
+        $longUrl    = trim((string)($_POST['url'] ?? ''));
+        $customCode = trim((string)($_POST['code'] ?? ''));
+
         if (!is_valid_url($longUrl)) {
             $error = '请输入有效的 http/https 链接';
+        } elseif ($customCode !== '' && !preg_match('/^[A-Za-z0-9]{3,32}$/', $customCode)) {
+            $error = '自定义短码仅支持 3-32 位字母或数字';
+        } elseif ($customCode !== '' && link_exists($customCode)) {
+            $error = '这个短码已被占用，换一个试试';
         } else {
-            $code = generate_unique_code((int)config('code_length', 5));
+            $code  = $customCode !== '' ? $customCode : generate_unique_code((int)config('code_length', 5));
             $title = '';
             if ((string)setting('auto_title', '1') === '1') {
                 $title = fetch_page_title($longUrl, (int)config('fetch_timeout', 6));
@@ -61,44 +66,92 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// 首页公开统计（不影响隐私，仅展示聚合数字）
+$publicStats = ['links' => 0, 'clicks' => 0, 'days' => 0];
+try {
+    $publicStats['links']  = (int)db()->query('SELECT COUNT(*) AS c FROM links')->fetch()['c'];
+    $publicStats['clicks'] = (int)db()->query('SELECT COALESCE(SUM(clicks),0) AS c FROM links')->fetch()['c'];
+    $first = db()->query('SELECT MIN(created_at) AS d FROM links')->fetch()['d'] ?? null;
+    if ($first) {
+        $publicStats['days'] = max(1, (int)floor((time() - strtotime($first)) / 86400) + 1);
+    }
+} catch (Throwable $e) {
+    // 数据表尚未初始化时忽略
+}
+
 $pageTitle = $siteName;
 require ROOT . '/includes/templates/header.php';
 ?>
 
-<div class="hero">
-    <div class="hero-inner">
-        <div class="logo-badge" aria-hidden="true">🔗</div>
-        <h1><?= e($siteName) ?></h1>
-        <p class="hero-desc"><?= e($siteDesc) ?></p>
+<section class="hero">
+    <div class="hero-eyebrow"><span class="pulse-dot"></span> 开源 · 自托管 · 零依赖</div>
+    <h1 class="hero-title">让每一条链接<br><span class="hero-grad">都更短一点</span></h1>
+    <p class="hero-sub"><?= e($siteDesc) ?><br>粘贴长链接，一键生成清爽短址，跳转统计与安全策略尽在掌握。</p>
 
-        <?php if ($shortUrl !== ''): ?>
-            <div class="result-card success">
-                <p class="result-label">短链接已生成，复制分享：</p>
+    <?php if ($shortUrl !== ''): ?>
+        <div class="result-panel">
+            <div class="result-panel-inner">
+                <span class="result-check"><?= icon('check') ?></span>
+                <h2>短链接已生成</h2>
+                <p class="result-label">复制下面的链接，分享给任何人</p>
                 <div class="result-url">
                     <input type="text" id="result-url" value="<?= e($shortUrl) ?>" readonly>
-                    <button type="button" class="btn btn-copy" data-copy="#result-url">复制</button>
+                    <button type="button" class="btn btn-copy" data-copy="#result-url"><?= icon('copy', 'icon-sm') ?> 复制</button>
+                    <a href="<?= e($shortUrl) ?>" target="_blank" rel="noopener" class="btn btn-ghost" title="在新窗口打开"><?= icon('external', 'icon-sm') ?></a>
                 </div>
-                <p class="result-tip">访问该短链接会自动跳转到目标地址</p>
+                <p class="result-target">目标地址：<?= e($longUrl) ?></p>
+                <div class="btn-row">
+                    <a href="<?= e(base_path('/')) ?>" class="btn btn-primary"><?= icon('plus', 'icon-sm') ?> 再生成一个</a>
+                </div>
             </div>
-            <a href="/" class="btn btn-ghost">再生成一个</a>
-        <?php else: ?>
-            <form method="post" action="/" class="shorten-form" autocomplete="off">
+        </div>
+    <?php else: ?>
+        <div class="hero-card">
+            <form method="post" action="<?= e(base_path('/')) ?>" class="shorten-form" autocomplete="off">
                 <?= csrf_field() ?>
                 <div class="input-wrap">
-                    <input type="url" name="url" id="url" placeholder="粘贴长链接，例如 https://example.com/very/long/path" value="<?= e($longUrl) ?>" required maxlength="2048">
-                    <button type="submit" class="btn btn-primary">生成短链</button>
+                    <input type="url" name="url" id="url" placeholder="粘贴长链接，例如 https://example.com/very/long/path" value="<?= e($longUrl) ?>" required maxlength="2048" autofocus>
                 </div>
+                <button type="submit" class="btn btn-primary btn-lg"><?= icon('bolt', 'icon-sm') ?> 生成短链</button>
+                <details class="hero-advanced" <?= $customCode !== '' ? 'open' : '' ?>>
+                    <summary><?= icon('settings', 'icon-sm') ?> 自定义短码（可选）</summary>
+                    <div class="hero-advanced-body">
+                        <span class="mono"><?= e(rtrim(base_path('/s/'), '/')) ?>/</span>
+                        <input type="text" name="code" value="<?= e($customCode) ?>" placeholder="例如 mylink" maxlength="32" pattern="[A-Za-z0-9]{3,32}">
+                        <span class="form-help">3-32 位字母或数字</span>
+                    </div>
+                </details>
                 <?php if ($error !== ''): ?>
-                    <p class="form-error"><?= e($error) ?></p>
+                    <p class="form-error-inside"><?= e($error) ?></p>
                 <?php endif; ?>
             </form>
-            <p class="hero-note">免费 · 无需注册 · 点击即可访问</p>
-        <?php endif; ?>
-
-        <div class="hero-footer">
-            <a href="<?= e(base_path('/admin/login.php')) ?>" class="btn btn-ghost btn-sm">管理后台</a>
         </div>
+        <p class="hero-note"><?= icon('lock', 'icon-sm') ?> 免费使用 · 无需注册 · 链接仅在本站跳转</p>
+    <?php endif; ?>
+
+    <div class="hero-stats">
+        <div class="hero-stat"><strong><?= number_format($publicStats['links']) ?></strong><span>已生成短链</span></div>
+        <div class="hero-stat"><strong><?= number_format($publicStats['clicks']) ?></strong><span>累计跳转</span></div>
+        <div class="hero-stat"><strong><?= $publicStats['days'] > 0 ? $publicStats['days'] . ' 天' : '今天' ?></strong><span>稳定运行</span></div>
     </div>
-</div>
+</section>
+
+<section class="features" id="features">
+    <article class="feature-card">
+        <span class="feature-icon"><?= icon('bolt') ?></span>
+        <h3>秒级跳转，数据可见</h3>
+        <p>基于 PHP + SQLite 的轻量架构，301 / 302 自由切换，点击量、来源与趋势一目了然。</p>
+    </article>
+    <article class="feature-card">
+        <span class="feature-icon green"><?= icon('shield') ?></span>
+        <h3>私密可控，默认安全</h3>
+        <p>Argon2id 密码哈希、CSRF 防护、登录锁定与 UA 屏蔽，开放使用与注册均可独立开关。</p>
+    </article>
+    <article class="feature-card">
+        <span class="feature-icon orange"><?= icon('code') ?></span>
+        <h3>完整 API，随时集成</h3>
+        <p>REST 接口配合令牌鉴权与限流，支持创建、查询、更新、删除与统计，方便二次开发。</p>
+    </article>
+</section>
 
 <?php require ROOT . '/includes/templates/footer.php'; ?>

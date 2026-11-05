@@ -246,19 +246,26 @@ $migrations = db()->query('SELECT * FROM migrations ORDER BY id DESC LIMIT 20')-
 require __DIR__ . '/_header.php';
 ?>
 
+<div class="page-head">
+    <div>
+        <h2>数据迁移</h2>
+        <p>从 YOURLS 平滑迁入已有短链，已存在的短码自动跳过，不影响原站点数据。</p>
+    </div>
+</div>
+
 <div class="migrate-wrap">
 
     <div class="card">
-        <div class="card-head"><h2>从 YOURLS 导入</h2></div>
+        <div class="card-head"><h2><?= icon('database') ?> 从 YOURLS 导入</h2></div>
         <p class="card-desc">
-            AdminURL 支持把 <a href="https://yourls.org" target="_blank" rel="noopener nofollow">YOURLS</a> 的短链接数据平滑迁移过来。
+            把 <a href="https://yourls.org" target="_blank" rel="noopener nofollow">YOURLS</a> 的短链接数据平滑迁移过来。
             短码已有的条目会自动跳过（不覆盖），迁移不影响原站点。
         </p>
 
         <div class="migrate-tabs">
             <div class="tab-btns">
-                <button type="button" class="btn btn-ghost btn-sm active" data-tab="csv">方式一：CSV</button>
-                <button type="button" class="btn btn-ghost btn-sm" data-tab="sql">方式二：SQL 导出</button>
+                <button type="button" class="btn btn-ghost btn-sm active" data-tab="csv"><?= icon('upload', 'icon-sm') ?> CSV 粘贴</button>
+                <button type="button" class="btn btn-ghost btn-sm" data-tab="sql"><?= icon('code', 'icon-sm') ?> SQL 导出</button>
             </div>
 
             <!-- CSV -->
@@ -293,7 +300,7 @@ require __DIR__ . '/_header.php';
 
     <?php if ($result): ?>
         <div class="result-card <?= $result['imported'] > 0 ? 'success' : 'warn' ?>">
-            <p><strong>迁移完成：</strong>
+            <p><?= icon($result['imported'] > 0 ? 'check' : 'info', 'icon-sm') ?> <strong>迁移完成：</strong>
                 成功导入 <strong><?= (int)$result['imported'] ?></strong> 条，
                 跳过 <strong><?= (int)$result['skipped'] ?></strong> 条
                 <?php if (count($result['errors']) > 0): ?>，<?= count($result['errors']) ?> 条失败<?php endif; ?>
@@ -310,7 +317,7 @@ require __DIR__ . '/_header.php';
 
     <?php if (count($migrations) > 0): ?>
     <div class="card">
-        <div class="card-head"><h2>迁移历史</h2></div>
+        <div class="card-head"><h2><?= icon('clock') ?> 迁移历史</h2></div>
         <div class="table-wrap">
             <table class="data-table">
                 <thead><tr><th>时间</th><th>来源</th><th>导入</th><th>跳过</th></tr></thead>
