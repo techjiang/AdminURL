@@ -15,7 +15,9 @@ $stats = ['total' => 0, 'clicks' => 0, 'today' => 0, 'pending' => 0];
 try {
     $stats['total']   = (int)db()->query('SELECT COUNT(*) AS c FROM links')->fetch()['c'];
     $stats['clicks']  = (int)db()->query('SELECT COALESCE(SUM(clicks),0) AS c FROM links')->fetch()['c'];
-    $stats['today']   = (int)db()->query("SELECT COUNT(*) AS c FROM links WHERE date(created_at) = date('now','localtime')")->fetch()['c'];
+    $todayStmt = db()->prepare('SELECT COUNT(*) AS c FROM links WHERE created_at >= ?');
+    $todayStmt->execute([date('Y-m-d 00:00:00')]);
+    $stats['today']   = (int)$todayStmt->fetch()['c'];
     $stats['pending'] = (int)db()->query('SELECT COUNT(*) AS c FROM click_logs')->fetch()['c'];
 } catch (Throwable $e) {
     // 表未初始化
@@ -221,6 +223,7 @@ require __DIR__ . '/_header.php';
         <div class="card" style="margin-top:20px">
             <div class="card-head"><h2><?= icon('info') ?> 运行状态</h2></div>
             <div class="kv-list">
+                <div class="kv-row"><span>系统版本</span><strong>v<?= e(ADMINURL_VERSION) ?></strong></div>
                 <div class="kv-row"><span>运行环境</span><strong>PHP <?= e(PHP_VERSION) ?></strong></div>
                 <div class="kv-row"><span>数据库</span><strong>SQLite</strong></div>
                 <div class="kv-row"><span>短链前缀</span><strong class="mono"><?= e(rtrim(base_path('/s/'), '/')) ?>/</strong></div>

@@ -157,7 +157,7 @@ require ROOT . '/includes/templates/header.php';
                 <?php endif; ?>
 
                 <?php if ($envOk): ?>
-                    <form method="post" class="auth-form" autocomplete="off">
+                    <form method="post" class="auth-form">
                         <?= csrf_field() ?>
                         <div class="form-group">
                             <label for="site_name">站点名称</label>
@@ -171,15 +171,15 @@ require ROOT . '/includes/templates/header.php';
                         <hr class="form-divider">
                         <div class="form-group">
                             <label for="username">管理员用户名</label>
-                            <input type="text" id="username" name="username" placeholder="admin" required>
+                            <input type="text" id="username" name="username" placeholder="admin" required autocomplete="username">
                         </div>
                         <div class="form-group">
                             <label for="password">管理员密码</label>
-                            <input type="password" id="password" name="password" placeholder="至少 8 位" minlength="8" required>
+                            <input type="password" id="password" name="password" placeholder="至少 8 位" minlength="8" required autocomplete="new-password">
                         </div>
                         <div class="form-group">
                             <label for="password2">确认密码</label>
-                            <input type="password" id="password2" name="password2" placeholder="再次输入密码" minlength="8" required>
+                            <input type="password" id="password2" name="password2" placeholder="再次输入密码" minlength="8" required autocomplete="new-password">
                         </div>
 
                         <?php if ($error !== ''): ?>

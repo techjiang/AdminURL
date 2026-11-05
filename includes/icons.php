@@ -37,6 +37,8 @@ function icon(string $name, string $extra = ''): string
         'lock'      => '<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
         'key'       => '<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9 2 2-2 2 1.5 1.5-2.5 2.5L17.5 9 15 11.5"/>',
         'upload'    => '<path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>',
+        'download'  => '<path d="M12 4v12"/><path d="m7 11 5 5 5-5"/><path d="M4 19h16"/>',
+        'check-box' => '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="m8 12 3 3 5-6"/>',
         'info'      => '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
         'alert'     => '<path d="M10.3 4.3 2.6 18a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
         'clock'     => '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',

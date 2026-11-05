@@ -211,6 +211,8 @@ select {
 .switch-row > input:focus-visible + .switch, .switch-row > input:focus-visible + .switch-ui { outline: 3px solid rgba(91, 91, 246, .35); outline-offset: 2px; }
 
 .input-wrap, .inline-form, .search-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.card-head .search-form { flex: 0 1 auto; flex-wrap: nowrap; }
+.card-head .search-box { flex: 0 1 260px; min-width: 0; }
 .input-wrap > input, .inline-form > input, .search-form > input { flex: 1 1 220px; }
 .input-wrap .code-input { flex: 0 1 210px; }
 .inline-form { margin-bottom: 4px; }
@@ -314,6 +316,19 @@ select {
 
 .pagination { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 20px; }
 .page-info { font-size: 13px; color: var(--text-3); }
+
+.th-check, .td-check { width: 40px; text-align: center; padding-left: 8px; padding-right: 8px; }
+.data-table input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--brand); cursor: pointer; }
+.bulk-bar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 12px;
+  margin-top: 18px; padding: 12px 14px; border-radius: 12px;
+  background: var(--surface-2); border: 1px dashed var(--border-strong);
+  font-size: 13px; color: var(--text-2);
+}
+.bulk-bar > span:first-child { display: inline-flex; align-items: center; gap: 7px; }
+.bulk-bar strong { color: var(--brand-ink); font-variant-numeric: tabular-nums; }
+.bulk-bar select { width: auto; min-width: 132px; min-height: 34px; padding: 6px 32px 6px 10px; font-size: 13px; }
+.bulk-bar .muted { margin-left: auto; }
 
 /* ------------------------------- Modal -------------------------------- */
 .modal-backdrop {
@@ -555,4 +570,5 @@ pre, .code-block {
 }
 @media (max-width: 900px) {
   .settings-grid { grid-template-columns: 1fr; }
+  .card-head .search-form { flex-wrap: wrap; }
 }

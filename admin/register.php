@@ -90,19 +90,19 @@ require ROOT . '/includes/templates/header.php';
                     <p>填写下面的信息，几秒钟即可开始使用。</p>
                 </div>
 
-                <form method="post" class="auth-form" autocomplete="off">
+                <form method="post" class="auth-form">
                     <?= csrf_field() ?>
                     <div class="form-group">
                         <label for="username">用户名</label>
-                        <input type="text" id="username" name="username" placeholder="2-32 位，中英文 / 数字 / 下划线" required autofocus>
+                        <input type="text" id="username" name="username" placeholder="2-32 位，中英文 / 数字 / 下划线" required autofocus autocomplete="username">
                     </div>
                     <div class="form-group">
                         <label for="password">密码</label>
-                        <input type="password" id="password" name="password" placeholder="至少 8 位" minlength="8" required>
+                        <input type="password" id="password" name="password" placeholder="至少 8 位" minlength="8" required autocomplete="new-password">
                     </div>
                     <div class="form-group">
                         <label for="password2">确认密码</label>
-                        <input type="password" id="password2" name="password2" placeholder="再次输入密码" minlength="8" required>
+                        <input type="password" id="password2" name="password2" placeholder="再次输入密码" minlength="8" required autocomplete="new-password">
                     </div>
 
                     <?php if ($error !== ''): ?>

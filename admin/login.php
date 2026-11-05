@@ -73,15 +73,15 @@ require ROOT . '/includes/templates/header.php';
                 <p>登录控制台，继续管理你的短链接。</p>
             </div>
 
-            <form method="post" class="auth-form" autocomplete="off">
+            <form method="post" class="auth-form">
                 <?= csrf_field() ?>
                 <div class="form-group">
                     <label for="username">用户名</label>
-                    <input type="text" id="username" name="username" placeholder="请输入用户名" required autofocus>
+                    <input type="text" id="username" name="username" placeholder="请输入用户名" required autofocus autocomplete="username">
                 </div>
                 <div class="form-group">
                     <label for="password">密码</label>
-                    <input type="password" id="password" name="password" placeholder="请输入密码" required>
+                    <input type="password" id="password" name="password" placeholder="请输入密码" required autocomplete="current-password">
                 </div>
 
                 <?php if ($error !== ''): ?>

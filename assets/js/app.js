@@ -184,6 +184,7 @@
 
     /* --------------------------- 表单提交反馈 --------------------------- */
     document.addEventListener('submit', function (e) {
+        if (e.defaultPrevented) { return; }
         var form = e.target;
         var btn = form.querySelector('button[type="submit"]');
         if (!btn || btn.disabled) { return; }
@@ -192,6 +193,44 @@
         btn.innerHTML = '<span class="spinner"></span> 处理中';
         setTimeout(function () { btn.disabled = false; btn.innerHTML = label; }, 6000);
     });
+
+    /* ---------------------------- 链接批量操作 -------------------------- */
+    var bulkForm = document.getElementById('bulk-form');
+    if (bulkForm) {
+        var checkAll = document.getElementById('check-all');
+        var rowChecks = Array.prototype.slice.call(bulkForm.querySelectorAll('.row-check'));
+        var selectedCount = document.getElementById('selected-count');
+        var bulkSubmit = document.getElementById('bulk-submit');
+        var bulkAction = document.getElementById('bulk-action');
+
+        var refreshBulk = function () {
+            var n = rowChecks.filter(function (c) { return c.checked; }).length;
+            if (selectedCount) { selectedCount.textContent = String(n); }
+            if (bulkSubmit) { bulkSubmit.disabled = n === 0; }
+            if (checkAll) {
+                checkAll.checked = n > 0 && n === rowChecks.length;
+                checkAll.indeterminate = n > 0 && n < rowChecks.length;
+            }
+        };
+
+        if (checkAll) {
+            checkAll.addEventListener('change', function () {
+                rowChecks.forEach(function (c) { c.checked = checkAll.checked; });
+                refreshBulk();
+            });
+        }
+        rowChecks.forEach(function (c) { c.addEventListener('change', refreshBulk); });
+
+        bulkForm.addEventListener('submit', function (e) {
+            if (bulkAction && bulkAction.value === 'delete'
+                && !confirm('确定删除选中的短链接吗？此操作不可恢复。')) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        });
+
+        refreshBulk();
+    }
 
     /* ------------------------------ 实时时钟 ---------------------------- */
     var clock = document.querySelector('[data-clock]');

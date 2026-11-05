@@ -162,7 +162,7 @@ require __DIR__ . '/_header.php';
 
         <div class="form-group">
             <label for="acc-username">登录用户名</label>
-            <input type="text" id="acc-username" name="username" value="<?= e($adminUser['username'] ?? '') ?>" maxlength="32" required>
+            <input type="text" id="acc-username" name="username" value="<?= e($adminUser['username'] ?? '') ?>" maxlength="32" required autocomplete="username">
         </div>
         <div class="form-group">
             <label for="acc-current">当前密码</label>

@@ -25,7 +25,7 @@ $author = require ROOT . '/includes/author.php';
             </div>
             <p style="width:100%;margin:0;padding-top:12px;border-top:1px solid var(--border)">
                 &copy; <?= date('Y') ?> <a href="https://www.asoe.cn" target="_blank" rel="noopener nofollow"><?= e($author['author']) ?></a>
-                · AdminURL 开源短链接系统
+                · AdminURL v<?= e(ADMINURL_VERSION) ?> 开源短链接系统
                 · <a href="https://github.com/techjiang/AdminURL" target="_blank" rel="noopener nofollow">GitHub</a>
             </p>
         </footer>
