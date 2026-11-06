@@ -65,6 +65,7 @@ require __DIR__ . '/_header.php';
         <div class="kv-row"><span>剩余时间</span><strong><?= e(expiry_remaining($link)) ?></strong></div>
         <?php $detailHealth = health_meta(isset($link['check_code']) && $link['check_code'] !== null ? (int)$link['check_code'] : null); ?>
         <div class="kv-row"><span>目标状态</span><strong><span class="badge <?= e($detailHealth['class']) ?>"><?= e($detailHealth['label']) ?></span></strong></div>
+        <div class="kv-row"><span>访问密码</span><strong><?= link_is_protected($link) ? '已启用密码保护' : '无需密码' ?></strong></div>
         <div class="kv-row"><span>创建时间</span><strong class="mono"><?= e($link['created_at']) ?></strong></div>
         <div class="kv-row"><span>最后更新</span><strong class="mono"><?= e($link['updated_at']) ?></strong></div>
     </div>

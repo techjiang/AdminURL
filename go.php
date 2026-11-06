@@ -10,6 +10,7 @@
  * 不会被当作短码，避免与后台、API 和静态目录冲突。
  *
  * 特性：
+ *  - 访问密码：受保护链接先展示品牌化密码页，验证通过后按 link_id 写入会话授权，不跳转、不计数
  *  - 有效期：expires_at 到期的链接展示品牌化错误页，不跳转、不计数
  *  - UA 屏蔽：命中黑名单的访问直接拒绝，不跳转、不计数
  *  - 延迟计数：点击只写入 click_logs 缓冲队列，达到阈值或间隔后再批量合并到 links.clicks，
@@ -78,6 +79,37 @@ if (ua_match($ua)) {
     render_short_error(403, '访问被拒绝', '当前访问方式已被站点屏蔽规则拦截。');
 }
 
+// ============ 访问密码 ============
+// 未授权的访客只看到密码页：不跳转、不计数；验证通过后按 link_id 写入会话授权。
+if (link_is_protected($link)) {
+    $linkId = (int)$link['id'];
+    if (empty($_SESSION['link_access'][$linkId])) {
+        $pwError = '';
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && array_key_exists('access_password', $_POST)) {
+            if (!verify_csrf($_POST['_csrf'] ?? null)) {
+                $pwError = '请求已过期，请重新提交';
+            } elseif (link_password_locked($code)) {
+                $pwError = '尝试次数过多，请 10 分钟后再试';
+            } elseif (password_verify((string)$_POST['access_password'], (string)$link['access_password'])) {
+                $_SESSION['link_access'][$linkId] = time();
+                unset($_SESSION['link_pw_fails'][strtolower($code)]);
+                header('Location: ' . (string)($_SERVER['REQUEST_URI'] ?? '/'), true, 303);
+                exit;
+            } else {
+                link_password_fail($code);
+                $pwError = '访问密码不正确，请重试';
+            }
+        }
+        render_short_error(
+            200,
+            '需要访问密码',
+            '这条短链受密码保护，请输入发布者提供的访问密码后继续。',
+            render_password_form($pwError),
+            '密'
+        );
+    }
+}
+
 // ============ 延迟计数 ============
 record_click_delayed((int)$link['id']);
 
@@ -91,7 +123,7 @@ exit;
  *
  * 短链跳转失败时展示，独立内联样式，自动适配深浅色，不依赖后台 CSS。
  */
-function render_short_error(int $status, string $title, string $desc): void
+function render_short_error(int $status, string $title, string $desc, string $extraHtml = '', string $badge = ''): void
 {
     http_response_code($status);
     header('Content-Type: text/html; charset=UTF-8');
@@ -99,7 +131,7 @@ function render_short_error(int $status, string $title, string $desc): void
     $site = e((string)setting('site_name', 'AdminURL'));
     $home = e(base_path('/'));
     $favicon = e(base_path('/assets/img/favicon.svg'));
-    $code = (string)$status;
+    $code = $badge !== '' ? e($badge) : (string)$status;
     $title = e($title);
     $desc = e($desc);
 
@@ -125,6 +157,11 @@ p{margin:0;color:var(--muted);font-size:14px}
 a{display:inline-flex;align-items:center;justify-content:center;margin-top:26px;min-height:44px;padding:0 24px;border-radius:11px;background:linear-gradient(120deg,#5b5bf6,#9155f7);color:#fff;text-decoration:none;font-weight:650;font-size:14px}
 a:hover{opacity:.9}
 .foot{margin-top:26px;padding-top:18px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)}
+.pw-form{display:flex;flex-direction:column;gap:10px;margin-top:22px}
+.pw-form input{width:100%;min-height:44px;padding:0 14px;border:1px solid var(--border);border-radius:11px;background:var(--bg);color:var(--text);font-size:15px;outline:none}
+.pw-form input:focus{border-color:#5b5bf6;box-shadow:0 0 0 4px rgba(91,91,246,.12)}
+.pw-form button{min-height:44px;border:0;border-radius:11px;background:linear-gradient(120deg,#5b5bf6,#9155f7);color:#fff;font-weight:650;font-size:14px;cursor:pointer}
+.pw-error{margin:12px 0 0;color:#e5484d;font-size:13px}
 </style>
 </head>
 <body>
@@ -132,6 +169,7 @@ a:hover{opacity:.9}
 <div class="badge">{$code}</div>
 <h1>{$title}</h1>
 <p>{$desc}</p>
+{$extraHtml}
 <a href="{$home}">返回首页</a>
 <div class="foot">Powered by {$site}</div>
 </div>

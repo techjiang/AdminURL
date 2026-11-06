@@ -41,6 +41,9 @@ function ensure_lifecycle_schema(): void
         if (!in_array('checked_at', $columns, true)) {
             $pdo->exec('ALTER TABLE links ADD COLUMN checked_at TEXT DEFAULT NULL');
         }
+        if (!in_array('access_password', $columns, true)) {
+            $pdo->exec('ALTER TABLE links ADD COLUMN access_password TEXT DEFAULT NULL');
+        }
         if (!in_array('device', array_map(static fn($c) => (string)$c['name'], $pdo->query('PRAGMA table_info(click_logs)')->fetchAll()), true)) {
             $pdo->exec("ALTER TABLE click_logs ADD COLUMN device TEXT NOT NULL DEFAULT ''");
         }
@@ -206,7 +209,7 @@ function link_expiry_stats(int $days = 7): array
  * 新链接默认启用、点击数从 0 开始；若原链接已经过期，则不再继承过期时间，
  * 避免克隆出来立刻无法访问。
  *
- * @return array{code: string, expires_at: ?string, tag: string}
+ * @return array{code: string, expires_at: ?string, tag: string, password_protected: bool}
  */
 function clone_link_row(array $row, int $userId = 0): array
 {
@@ -218,8 +221,8 @@ function clone_link_row(array $row, int $userId = 0): array
     $code = generate_unique_code((int)config('code_length', 5));
     $now = date('Y-m-d H:i:s');
     db()->prepare(
-        'INSERT INTO links (code, url, title, user_id, status, expires_at, tag, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)'
+        'INSERT INTO links (code, url, title, user_id, status, expires_at, tag, access_password, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?)'
     )->execute([
         $code,
         (string)$row['url'],
@@ -227,13 +230,15 @@ function clone_link_row(array $row, int $userId = 0): array
         $userId,
         $expiry !== '' ? $expiry : null,
         (string)($row['tag'] ?? ''),
+        (string)($row['access_password'] ?? '') !== '' ? (string)$row['access_password'] : null,
         $now,
         $now,
     ]);
 
     return [
-        'code'       => $code,
-        'expires_at' => $expiry !== '' ? $expiry : null,
-        'tag'        => (string)($row['tag'] ?? ''),
+        'code'               => $code,
+        'expires_at'         => $expiry !== '' ? $expiry : null,
+        'tag'                => (string)($row['tag'] ?? ''),
+        'password_protected' => link_is_protected($row),
     ];
 }

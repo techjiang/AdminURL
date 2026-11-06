@@ -48,10 +48,10 @@ $newTokenName = $_SESSION['new_token_name'] ?? '';
 unset($_SESSION['new_token'], $_SESSION['new_token_name']);
 
 $endpoints = [
-    ['POST',   '/api/v1/links',        '创建短链',        'url 必填，code / title / expires_at / tag 可选'],
+    ['POST',   '/api/v1/links',        '创建短链',        'url 必填，code / title / expires_at / tag / access_password 可选'],
     ['GET',    '/api/v1/links',        '查询短链列表',    '支持 page / size / q / tag 参数'],
     ['GET',    '/api/v1/links/{code}', '查询单个短链',    '返回链接详情、有效期与点击数'],
-    ['PUT',    '/api/v1/links/{code}', '更新短链',        '可修改 url / title / code / expires_at'],
+    ['PUT',    '/api/v1/links/{code}', '更新短链',        '可修改 url / title / code / expires_at / access_password'],
     ['POST',   '/api/v1/links/{code}/clone', '一键克隆', '生成新短码，点击数从 0 开始'],
     ['DELETE', '/api/v1/links/{code}', '删除短链',        '删除后不可恢复'],
     ['GET',    '/api/v1/stats',        '统计概览',        '总量、点击量与今日新增'],
@@ -153,8 +153,8 @@ require __DIR__ . '/_header.php';
     <h3 style="margin:24px 0 10px;font-size:14px">创建短链请求体</h3>
     <pre><code>POST <?= e(base_path('/api/v1/links')) ?>  Content-Type: application/json
 { "url": "https://example.com/very/long/path", "code": "optional", "title": "optional",
-  "expires_at": "2026-12-31 23:59", "tag": "活动推广" }</code></pre>
-    <p class="form-help"><code>expires_at</code> 可选，支持 <code>YYYY-MM-DD HH:MM:SS</code> 与 <code>YYYY-MM-DD HH:MM</code>；传空字符串表示永久有效。<code>tag</code> 可选，最多 32 字。列表 / 详情响应返回 <code>expires_at</code>、<code>expired</code> 与 <code>tag</code>；列表可用 <code>?tag=标签</code> 或 <code>?tag=__none</code> 过滤。</p>
+  "expires_at": "2026-12-31 23:59", "tag": "活动推广", "access_password": "visit123" }</code></pre>
+    <p class="form-help"><code>expires_at</code> 可选，支持 <code>YYYY-MM-DD HH:MM:SS</code> 与 <code>YYYY-MM-DD HH:MM</code>；传空字符串表示永久有效。<code>tag</code> 可选，最多 32 字。列表 / 详情响应返回 <code>expires_at</code>、<code>expired</code>、<code>tag</code> 与 <code>password_protected</code>；列表可用 <code>?tag=标签</code> 或 <code>?tag=__none</code> 过滤。<code>access_password</code> 为 4-128 字符的明文，仅用于写入，不会出现在任何响应或 CSV 导出中；PUT 时传 <code>clear_access_password: true</code> 可清除密码，留空则保持不变。</p>
 
     <h3 style="margin:24px 0 10px;font-size:14px">一键克隆</h3>
     <pre><code>POST <?= e(base_path('/api/v1/links/{code}/clone')) ?>  Authorization: Bearer YOUR_TOKEN</code></pre>

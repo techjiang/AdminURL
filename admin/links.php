@@ -174,11 +174,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'edit_li
         // 编辑允许保留已过去的有效期，否则已过期链接无法保存其他字段
         $eexpiry = validate_expiry_input((string)($_POST['expires_at'] ?? ''), false);
         $etag    = normalize_tag((string)($_POST['tag'] ?? ''));
+        $currentPwdStmt = db()->prepare('SELECT access_password FROM links WHERE id = ?');
+        $currentPwdStmt->execute([$eid]);
+        $currentPwd = $currentPwdStmt->fetchColumn();
+        $currentPwd = ($currentPwd === false || $currentPwd === null || (string)$currentPwd === '')
+            ? null : (string)$currentPwd;
+        $epassword = resolve_link_password($_POST, $currentPwd);
 
         if (!is_valid_url($eurl)) {
             $_SESSION['edit_error'] = '目标地址必须是有效的 http/https 链接';
         } elseif (!$eexpiry['ok']) {
             $_SESSION['edit_error'] = $eexpiry['error'];
+        } elseif (!$epassword['ok']) {
+            $_SESSION['edit_error'] = $epassword['error'];
         } elseif ($ecode === '' || !preg_match('/^[A-Za-z0-9]{3,32}$/', $ecode)) {
             $_SESSION['edit_error'] = '短码仅支持 3-32 位字母或数字';
         } elseif (is_reserved_code($ecode)) {
@@ -192,10 +200,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'edit_li
                 if ($etitle === '' && (string)setting('auto_title', '1') === '1') {
                     $etitle = fetch_page_title($eurl, (int)config('fetch_timeout', 6));
                 }
-                db()->prepare('UPDATE links SET code = ?, url = ?, title = ?, expires_at = ?, tag = ?, updated_at = ? WHERE id = ?')
+                db()->prepare('UPDATE links SET code = ?, url = ?, title = ?, expires_at = ?, tag = ?, access_password = ?, updated_at = ? WHERE id = ?')
                     ->execute([
                         $ecode, $eurl, mb_substr($etitle, 0, 200), $eexpiry['value'], $etag,
-                        date('Y-m-d H:i:s'), $eid,
+                        $epassword['value'], date('Y-m-d H:i:s'), $eid,
                     ]);
                 log_event('link_edit', '编辑短链接 ' . $ecode);
                 $_SESSION['flash_ok'] = '链接已更新';
@@ -331,6 +339,9 @@ require __DIR__ . '/_header.php';
                                     <a class="tag-chip" style="--tag-hue:<?= tag_hue((string)$row['tag']) ?>"
                                        href="<?= e(base_path('/admin/links.php?tag=' . urlencode((string)$row['tag']))) ?>"><?= e($row['tag']) ?></a>
                                 <?php endif; ?>
+                                <?php if (link_is_protected($row)): ?>
+                                    <span class="tag-chip" style="--tag-hue:265">密码保护</span>
+                                <?php endif; ?>
                             </td>
                             <td class="td-title" title="<?= e($row['url']) ?>"><?= e($row['title'] !== '' ? $row['title'] : '—') ?></td>
                             <td class="td-url" title="<?= e($row['url']) ?>">
@@ -446,6 +457,17 @@ require __DIR__ . '/_header.php';
                     <?php endforeach; ?>
                 </datalist>
                 <p class="form-help">留空表示未分组；最多 32 字，可用于筛选与统计。</p>
+            </div>
+            <div class="form-group">
+                <label for="edit-access-password">访问密码</label>
+                <input type="password" id="edit-access-password" name="access_password" maxlength="128" autocomplete="new-password"
+                       placeholder="<?= link_is_protected($editRow) ? '已设置，留空保持不变' : '留空表示无需密码' ?>">
+                <p class="form-help">设置后访客需输入密码才能跳转；密码以 bcrypt 哈希存储，不会明文保存。</p>
+                <?php if (link_is_protected($editRow)): ?>
+                    <label class="switch-row" style="margin-top:10px;font-size:13px;color:var(--text-2)">
+                        <input type="checkbox" name="clear_access_password" value="1" style="width:auto;min-height:auto;margin-right:8px"> 清除已有访问密码
+                    </label>
+                <?php endif; ?>
             </div>
 
             <?php if (!empty($_SESSION['edit_error'])): ?>

@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS links (
     tag        TEXT NOT NULL DEFAULT '',
     check_code INTEGER DEFAULT NULL,
     checked_at TEXT DEFAULT NULL,
+    access_password TEXT DEFAULT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 )

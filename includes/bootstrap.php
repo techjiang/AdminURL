@@ -51,6 +51,8 @@ require_once ROOT . '/includes/lifecycle.php';
 require_once ROOT . '/includes/tagging.php';
 require_once ROOT . '/includes/health.php';
 require_once ROOT . '/includes/audience.php';
+require_once ROOT . '/includes/link_access.php';
+require_once ROOT . '/includes/trash.php';
 
 // 安全响应头
 header('X-Frame-Options: SAMEORIGIN');

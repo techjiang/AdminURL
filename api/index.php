@@ -9,7 +9,7 @@
  *   2. ?access_token=<token>
  *
  * 端点一览：
- *   POST /api/v1/links          创建短链     {url, code?, title?, expires_at?, tag?}
+ *   POST /api/v1/links          创建短链     {url, code?, title?, expires_at?, tag?, access_password?}
  *   GET  /api/v1/links          链接列表     {page?, size?, q?, tag?}
  *   GET  /api/v1/links/{code}   查询单个
  *   PUT  /api/v1/links/{code}   更新短链     {url?, title?, code?, expires_at?}
@@ -170,12 +170,16 @@ if ($route === '/api/v1/links' && $method === 'POST') {
     $title = trim((string)($payload['title'] ?? ''));
     $expiry = validate_expiry_input((string)($payload['expires_at'] ?? ''));
     $tag    = normalize_tag((string)($payload['tag'] ?? ''));
+    $pwd    = resolve_link_password($payload, null);
 
     if (!is_valid_url($url)) {
         api_fail('url 必须是有效的 http/https 链接');
     }
     if (!$expiry['ok']) {
         api_fail('expires_at: ' . $expiry['error']);
+    }
+    if (!$pwd['ok']) {
+        api_fail('access_password: ' . $pwd['error']);
     }
     if ($code !== '' && !preg_match('/^[A-Za-z0-9]{3,32}$/', $code)) {
         api_fail('code 仅支持 3-32 位字母或数字');
@@ -195,11 +199,11 @@ if ($route === '/api/v1/links' && $method === 'POST') {
 
     try {
         db()->prepare(
-            'INSERT INTO links (code, url, title, user_id, status, expires_at, tag, created_at, updated_at)
-             VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)'
+            'INSERT INTO links (code, url, title, user_id, status, expires_at, tag, access_password, created_at, updated_at)
+             VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?)'
         )->execute([
             $code, $url, mb_substr($title, 0, 200), (int)$token['user_id'], $expiry['value'], $tag,
-            date('Y-m-d H:i:s'), date('Y-m-d H:i:s'),
+            $pwd['value'], date('Y-m-d H:i:s'), date('Y-m-d H:i:s'),
         ]);
     } catch (Throwable $e) {
         api_fail('创建失败: ' . $e->getMessage(), 500);
@@ -214,6 +218,7 @@ if ($route === '/api/v1/links' && $method === 'POST') {
         'title'      => $title,
         'expires_at' => $expiry['value'],
         'tag'        => $tag,
+        'password_protected' => $pwd['value'] !== null,
         'expired'    => false,
     ], 201);
 }
@@ -241,12 +246,14 @@ if ($route === '/api/v1/links' && $method === 'GET') {
     $total = (int)db()->query('SELECT COUNT(*) AS c FROM links' . $where)->fetch()['c'];
     $offset = ($page - 1) * $size;
 
-    $stmt = db()->prepare('SELECT id, code, url, title, clicks, status, expires_at, tag, created_at, updated_at FROM links' . $where . ' ORDER BY id DESC LIMIT ? OFFSET ?');
+    $stmt = db()->prepare('SELECT id, code, url, title, clicks, status, expires_at, tag, created_at, updated_at,
+       CASE WHEN LENGTH(access_password) > 0 THEN 1 ELSE 0 END AS password_protected FROM links' . $where . ' ORDER BY id DESC LIMIT ? OFFSET ?');
     $stmt->execute([...$params, $size, $offset]);
     $rows = array_map(function ($r) {
         $r['short_url'] = short_url($r['code']);
         $r['clicks'] = (int)$r['clicks'];
         $r['expired'] = link_is_expired($r);
+        $r['password_protected'] = (bool)$r['password_protected'];
         return $r;
     }, $stmt->fetchAll());
 
@@ -262,7 +269,8 @@ if ($route === '/api/v1/links' && $method === 'GET') {
 
 // ---------- 查询单个 ----------
 if ($route === '/api/v1/links/{code}' && $method === 'GET') {
-    $stmt = db()->prepare('SELECT id, code, url, title, clicks, status, expires_at, tag, created_at, updated_at FROM links WHERE code = ? LIMIT 1');
+    $stmt = db()->prepare('SELECT id, code, url, title, clicks, status, expires_at, tag, created_at, updated_at,
+       CASE WHEN LENGTH(access_password) > 0 THEN 1 ELSE 0 END AS password_protected FROM links WHERE code = ? LIMIT 1');
     $stmt->execute([$param]);
     $row = $stmt->fetch();
     if ($row === false) {
@@ -271,6 +279,7 @@ if ($route === '/api/v1/links/{code}' && $method === 'GET') {
     $row['short_url'] = short_url($row['code']);
     $row['clicks'] = (int)$row['clicks'];
     $row['expired'] = link_is_expired($row);
+    $row['password_protected'] = (bool)$row['password_protected'];
     json_response(['ok' => true, 'link' => $row]);
 }
 
@@ -295,12 +304,19 @@ if ($route === '/api/v1/links/{code}' && $method === 'PUT') {
     $newTag = array_key_exists('tag', $payload)
         ? normalize_tag((string)$payload['tag'])
         : (string)($row['tag'] ?? '');
+    $newPwd = resolve_link_password(
+        $payload,
+        trim((string)($row['access_password'] ?? '')) !== '' ? (string)$row['access_password'] : null
+    );
 
     if (!is_valid_url($newUrl)) {
         api_fail('url 必须是有效的 http/https 链接');
     }
     if (!$expiry['ok']) {
         api_fail('expires_at: ' . $expiry['error']);
+    }
+    if (!$newPwd['ok']) {
+        api_fail('access_password: ' . $newPwd['error']);
     }
     if (!preg_match('/^[A-Za-z0-9]{3,32}$/', $newCode)) {
         api_fail('code 仅支持 3-32 位字母或数字');
@@ -314,10 +330,10 @@ if ($route === '/api/v1/links/{code}' && $method === 'PUT') {
         api_fail('短码已被占用: ' . $newCode, 409);
     }
 
-    db()->prepare('UPDATE links SET code = ?, url = ?, title = ?, expires_at = ?, tag = ?, updated_at = ? WHERE id = ?')
+    db()->prepare('UPDATE links SET code = ?, url = ?, title = ?, expires_at = ?, tag = ?, access_password = ?, updated_at = ? WHERE id = ?')
         ->execute([
             $newCode, $newUrl, mb_substr($newTitle, 0, 200), $expiry['value'], $newTag,
-            date('Y-m-d H:i:s'), (int)$row['id'],
+            $newPwd['value'], date('Y-m-d H:i:s'), (int)$row['id'],
         ]);
     log_event('api_edit', 'API 更新短链接 ' . $newCode);
 
@@ -328,6 +344,7 @@ if ($route === '/api/v1/links/{code}' && $method === 'PUT') {
         'short_url'  => short_url($newCode),
         'expires_at' => $expiry['value'],
         'tag'        => $newTag,
+        'password_protected' => $newPwd['value'] !== null,
         'expired'    => $expiry['value'] !== null && link_is_expired($expiry['value']),
     ]);
 }
@@ -367,6 +384,7 @@ if ($route === '/api/v1/links/{code}/clone' && $method === 'POST') {
         'source'     => $param,
         'expires_at' => $clone['expires_at'],
         'tag'        => $clone['tag'],
+        'password_protected' => $clone['password_protected'],
         'clicks'     => 0,
     ], 201);
 }
