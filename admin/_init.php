@@ -12,6 +12,8 @@ if (!is_installed()) {
     redirect(base_path('/install/'));
 }
 
+ensure_lifecycle_schema();
+
 require_login();
 
 // 后台公共变量

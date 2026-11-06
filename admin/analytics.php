@@ -106,11 +106,8 @@ require __DIR__ . '/_header.php';
                         <td class="td-title"><?= e($row['title'] !== '' ? $row['title'] : '—') ?></td>
                         <td class="td-num"><?= number_format((int)$row['clicks']) ?></td>
                         <td>
-                            <?php if ((int)$row['status'] === 1): ?>
-                                <span class="badge badge-ok">正常</span>
-                            <?php else: ?>
-                                <span class="badge badge-warn">已停用</span>
-                            <?php endif; ?>
+                            <?php $meta = link_status_meta($row); ?>
+                            <span class="badge <?= e($meta['class']) ?>"><?= e($meta['label']) ?></span>
                         </td>
                         <td class="td-actions">
                             <a href="<?= e(base_path('/admin/link.php?id=' . (int)$row['id'])) ?>" class="btn btn-ghost btn-sm">查看趋势 <?= icon('arrow-right', 'icon-sm') ?></a>

@@ -144,7 +144,7 @@ function reserved_codes(): array
         'admin', 'api', 'assets', 'config', 'data', 'docs', 'includes', 'install',
         'go', 'index', 'router', 'robots', 'favicon', 's', 'changelog', 'license', 'readme',
         'login', 'register', 'settings', 'migrate', 'static', 'health',
-        'analytics', 'link', 'export', 'backup', 'logs',
+        'analytics', 'link', 'export', 'backup', 'logs', 'import', 'clone',
     ];
 }
 
@@ -481,17 +481,18 @@ function short_url(string $code): string
 /**
  * 链接列表公共筛选（后台列表与 CSV 导出共用，保证两者数据一致）
  *
- * 支持 q 搜索、status 状态筛选（'' / 0 / 1）、sort 排序（默认最新 / clicks / code）。
+ * 支持 q 搜索、status 状态筛选（全部 / 1 正常 / 0 已停用 / expired 已过期）、
+ * sort 排序（默认最新 / clicks / code / expiry 即将到期优先）。
  */
 function link_filter_from_request(): array
 {
     $search = trim((string)($_GET['q'] ?? ''));
     $status = (string)($_GET['status'] ?? '');
-    if (!in_array($status, ['', '0', '1'], true)) {
+    if (!in_array($status, ['', '0', '1', 'expired'], true)) {
         $status = '';
     }
     $sort = (string)($_GET['sort'] ?? '');
-    if (!in_array($sort, ['', 'clicks', 'code'], true)) {
+    if (!in_array($sort, ['', 'clicks', 'code', 'expiry'], true)) {
         $sort = '';
     }
 
@@ -501,15 +502,27 @@ function link_filter_from_request(): array
         $conditions[] = '(code LIKE ? OR url LIKE ? OR title LIKE ?)';
         array_push($params, "%$search%", "%$search%", "%$search%");
     }
-    if ($status !== '') {
-        $conditions[] = 'status = ?';
-        $params[] = (int)$status;
+    if ($status === '1') {
+        // 「正常」排除已过期的链接，与列表中的状态徽章口径一致
+        $conditions[] = "status = 1 AND (expires_at IS NULL OR expires_at = '' OR expires_at > ?)";
+        $params[] = date('Y-m-d H:i:s');
+    } elseif ($status === '0') {
+        $conditions[] = 'status = 0';
+    } elseif ($status === 'expired') {
+        $conditions[] = "expires_at IS NOT NULL AND expires_at <> '' AND expires_at <= ?";
+        $params[] = date('Y-m-d H:i:s');
     }
 
     $where = $conditions !== [] ? 'WHERE ' . implode(' AND ', $conditions) : '';
-    $order = $sort === 'clicks'
-        ? 'ORDER BY clicks DESC, id DESC'
-        : ($sort === 'code' ? 'ORDER BY code ASC, id DESC' : 'ORDER BY id DESC');
+    if ($sort === 'clicks') {
+        $order = 'ORDER BY clicks DESC, id DESC';
+    } elseif ($sort === 'code') {
+        $order = 'ORDER BY code ASC, id DESC';
+    } elseif ($sort === 'expiry') {
+        $order = "ORDER BY CASE WHEN expires_at IS NULL OR expires_at = '' THEN 1 ELSE 0 END, expires_at ASC, id DESC";
+    } else {
+        $order = 'ORDER BY id DESC';
+    }
 
     $parts = [];
     if ($search !== '') { $parts['q'] = $search; }

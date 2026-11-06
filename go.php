@@ -10,6 +10,7 @@
  * 不会被当作短码，避免与后台、API 和静态目录冲突。
  *
  * 特性：
+ *  - 有效期：expires_at 到期的链接展示品牌化错误页，不跳转、不计数
  *  - UA 屏蔽：命中黑名单的访问直接拒绝，不跳转、不计数
  *  - 延迟计数：点击只写入 click_logs 缓冲队列，达到阈值或间隔后再批量合并到 links.clicks，
  *    避免高并发下对主表反复 UPDATE 造成压力
@@ -22,6 +23,9 @@ require_once ROOT . '/includes/schema.php';
 if (!is_installed()) {
     redirect(base_path('/install/'));
 }
+
+// 旧数据库自动补齐有效期字段（幂等，不影响已有数据）
+ensure_lifecycle_schema();
 
 // 获取短码：优先查询参数，其次解析请求路径 /{code} 或 /s/{code}
 $code = trim((string)($_GET['s'] ?? ''));
@@ -61,6 +65,11 @@ if ($link === false) {
 // 链接被禁用
 if ((int)$link['status'] !== 1) {
     render_short_error(404, '短链接已停用', '该短链接已被管理员停用，暂时无法访问。');
+}
+
+// 有效期：过期后不再跳转，也不计入点击统计
+if (link_is_expired($link)) {
+    render_short_error(404, '短链接已过期', '这条短链接已超过访问期限，请联系发布者获取新地址。');
 }
 
 // ============ UA 屏蔽 ============

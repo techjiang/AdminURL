@@ -2,7 +2,7 @@
 /**
  * AdminURL 管理后台 - 链接管理
  *
- * 支持搜索、分页、编辑、删除、启用/停用、批量操作与 CSV 导出。
+ * 支持搜索、筛选、排序、分页、编辑、有效期、删除、启用/停用、一键克隆、批量操作与 CSV 导出。
  */
 
 require_once __DIR__ . '/_init.php';
@@ -52,6 +52,29 @@ if ($action === 'toggle' && $id > 0) {
                 ->execute([$newStatus, date('Y-m-d H:i:s'), $id]);
             log_event('link_toggle', ($newStatus === 1 ? '启用' : '停用') . '短链接 ' . $row['code']);
             $_SESSION['flash_ok'] = ($newStatus === 1 ? '已启用' : '已停用') . '「' . $row['code'] . '」';
+        }
+    }
+    redirect($listUrl);
+}
+
+// ---------- 一键克隆 ----------
+if ($action === 'clone' && $id > 0) {
+    if (!verify_csrf($_GET['_csrf'] ?? '')) {
+        $_SESSION['flash_error'] = '请求已过期';
+    } else {
+        $stmt = db()->prepare('SELECT * FROM links WHERE id = ?');
+        $stmt->execute([$id]);
+        $row = $stmt->fetch();
+        if ($row === false) {
+            $_SESSION['flash_error'] = '短链接不存在或已被删除';
+        } else {
+            try {
+                $clone = clone_link_row($row, (int)($adminUser['id'] ?? 0));
+                log_event('link_clone', '克隆短链接 ' . $row['code'] . ' -> ' . $clone['code']);
+                $_SESSION['flash_ok'] = '已克隆为「' . $clone['code'] . '」：' . short_url($clone['code']);
+            } catch (Throwable $e) {
+                $_SESSION['flash_error'] = '克隆失败，请稍后重试';
+            }
         }
     }
     redirect($listUrl);
@@ -113,9 +136,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'edit_li
         $eurl   = trim((string)($_POST['url'] ?? ''));
         $etitle = trim((string)($_POST['title'] ?? ''));
         $ecode  = trim((string)($_POST['code'] ?? ''));
+        // 编辑允许保留已过去的有效期，否则已过期链接无法保存其他字段
+        $eexpiry = validate_expiry_input((string)($_POST['expires_at'] ?? ''), false);
 
         if (!is_valid_url($eurl)) {
             $_SESSION['edit_error'] = '目标地址必须是有效的 http/https 链接';
+        } elseif (!$eexpiry['ok']) {
+            $_SESSION['edit_error'] = $eexpiry['error'];
         } elseif ($ecode === '' || !preg_match('/^[A-Za-z0-9]{3,32}$/', $ecode)) {
             $_SESSION['edit_error'] = '短码仅支持 3-32 位字母或数字';
         } elseif (is_reserved_code($ecode)) {
@@ -129,8 +156,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'edit_li
                 if ($etitle === '' && (string)setting('auto_title', '1') === '1') {
                     $etitle = fetch_page_title($eurl, (int)config('fetch_timeout', 6));
                 }
-                db()->prepare('UPDATE links SET code = ?, url = ?, title = ?, updated_at = ? WHERE id = ?')
-                    ->execute([$ecode, $eurl, mb_substr($etitle, 0, 200), date('Y-m-d H:i:s'), $eid]);
+                db()->prepare('UPDATE links SET code = ?, url = ?, title = ?, expires_at = ?, updated_at = ? WHERE id = ?')
+                    ->execute([
+                        $ecode, $eurl, mb_substr($etitle, 0, 200), $eexpiry['value'],
+                        date('Y-m-d H:i:s'), $eid,
+                    ]);
                 log_event('link_edit', '编辑短链接 ' . $ecode);
                 $_SESSION['flash_ok'] = '链接已更新';
                 redirect($listUrl);
@@ -173,6 +203,7 @@ require __DIR__ . '/_header.php';
         <p>管理站点中的 <?= number_format($total) ?> 条短链接，支持搜索、批量操作与导出。</p>
     </div>
     <div class="btn-row">
+        <a href="<?= e(base_path('/admin/import.php')) ?>" class="btn btn-ghost btn-sm"><?= icon('upload', 'icon-sm') ?> 批量导入</a>
         <a href="<?= e($exportUrl) ?>" class="btn btn-ghost btn-sm"><?= icon('download', 'icon-sm') ?> 导出 CSV</a>
         <a href="<?= e(base_path('/admin/#quick-create')) ?>" class="btn btn-primary"><?= icon('plus', 'icon-sm') ?> 新建短链</a>
     </div>
@@ -200,12 +231,14 @@ require __DIR__ . '/_header.php';
             <option value="" <?= $status === '' ? 'selected' : '' ?>>全部状态</option>
             <option value="1" <?= $status === '1' ? 'selected' : '' ?>>正常</option>
             <option value="0" <?= $status === '0' ? 'selected' : '' ?>>已停用</option>
+            <option value="expired" <?= $status === 'expired' ? 'selected' : '' ?>>已过期</option>
         </select>
         <label for="filter-sort">排序</label>
         <select name="sort" id="filter-sort">
             <option value="" <?= $sort === '' ? 'selected' : '' ?>>最新创建</option>
             <option value="clicks" <?= $sort === 'clicks' ? 'selected' : '' ?>>点击最多</option>
             <option value="code" <?= $sort === 'code' ? 'selected' : '' ?>>短码升序</option>
+            <option value="expiry" <?= $sort === 'expiry' ? 'selected' : '' ?>>即将到期</option>
         </select>
         <button type="submit" class="btn btn-ghost btn-sm">应用</button>
         <?php if ($baseQuery !== ''): ?>
@@ -253,22 +286,24 @@ require __DIR__ . '/_header.php';
                             </td>
                             <td class="td-num"><?= number_format((int)$row['clicks']) ?></td>
                             <td>
-                                <?php if ((int)$row['status'] === 1): ?>
-                                    <span class="badge badge-ok">正常</span>
-                                <?php else: ?>
-                                    <span class="badge badge-warn">已停用</span>
+                                <?php $meta = link_status_meta($row); ?>
+                                <span class="badge <?= e($meta['class']) ?>"><?= e($meta['label']) ?></span>
+                                <?php if (trim((string)($row['expires_at'] ?? '')) !== ''): ?>
+                                    <div class="expiry-hint"><?= e(mb_substr((string)$row['expires_at'], 0, 16)) ?></div>
                                 <?php endif; ?>
                             </td>
                             <td class="td-time"><?= e($row['created_at']) ?></td>
                             <td class="td-actions">
                                 <a href="<?= e(base_path('/admin/link.php?id=' . (int)$row['id'])) ?>"
                                    class="btn btn-ghost btn-sm" title="详情与趋势"><?= icon('chart', 'icon-sm') ?></a>
-                                <a href="<?= e(base_path('/admin/links.php?action=edit&id=' . (int)$row['id'])) ?>"
+                                <a href="<?= e(base_path('/admin/links.php?action=clone&id=' . (int)$row['id'] . '&_csrf=' . urlencode(csrf_token()) . $extra)) ?>"
+                                   class="btn btn-ghost btn-sm" title="一键克隆"><?= icon('copy', 'icon-sm') ?></a>
+                                <a href="<?= e(base_path('/admin/links.php?action=edit&id=' . (int)$row['id'] . $extra)) ?>"
                                    class="btn btn-ghost btn-sm" title="编辑"><?= icon('edit', 'icon-sm') ?></a>
-                                <a href="<?= e(base_path('/admin/links.php?action=toggle&id=' . (int)$row['id'] . '&_csrf=' . urlencode(csrf_token()))) ?>"
+                                <a href="<?= e(base_path('/admin/links.php?action=toggle&id=' . (int)$row['id'] . '&_csrf=' . urlencode(csrf_token()) . $extra)) ?>"
                                    class="btn btn-ghost btn-sm" title="<?= (int)$row['status'] === 1 ? '停用' : '启用' ?>"
                                    onclick="return confirm('确定<?= (int)$row['status'] === 1 ? '停用' : '启用' ?>该链接吗？')"><?= icon('power', 'icon-sm') ?></a>
-                                <a href="<?= e(base_path('/admin/links.php?action=delete&id=' . (int)$row['id'] . '&_csrf=' . urlencode(csrf_token()))) ?>"
+                                <a href="<?= e(base_path('/admin/links.php?action=delete&id=' . (int)$row['id'] . '&_csrf=' . urlencode(csrf_token()) . $extra)) ?>"
                                    class="btn btn-danger btn-sm" title="删除"
                                    onclick="return confirm('删除后不可恢复，确定删除吗？')"><?= icon('trash', 'icon-sm') ?></a>
                             </td>
@@ -329,6 +364,11 @@ require __DIR__ . '/_header.php';
                 <label for="edit-title">标题</label>
                 <input type="text" id="edit-title" name="title" value="<?= e($editRow['title']) ?>" maxlength="200">
                 <p class="form-help">留空保存时将自动重新抓取标题</p>
+            </div>
+            <div class="form-group">
+                <label for="edit-expires">有效期</label>
+                <input type="datetime-local" id="edit-expires" name="expires_at" value="<?= e(expiry_for_input($editRow['expires_at'] ?? '')) ?>">
+                <p class="form-help">留空表示永久有效；到期后短链自动停止跳转。</p>
             </div>
 
             <?php if (!empty($_SESSION['edit_error'])): ?>

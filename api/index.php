@@ -9,10 +9,11 @@
  *   2. ?access_token=<token>
  *
  * 端点一览：
- *   POST /api/v1/links          创建短链     {url, code?, title?}
+ *   POST /api/v1/links          创建短链     {url, code?, title?, expires_at?}
  *   GET  /api/v1/links          链接列表     {page?, size?, q?}
  *   GET  /api/v1/links/{code}   查询单个
- *   PUT  /api/v1/links/{code}   更新短链     {url?, title?, code?}
+ *   PUT  /api/v1/links/{code}   更新短链     {url?, title?, code?, expires_at?}
+ *   POST /api/v1/links/{code}/clone 一键克隆（生成新短码，点击数从 0 开始）
  *   DELETE /api/v1/links/{code} 删除短链
  *   GET  /api/v1/stats          统计概览
  *   POST /api/v1/ua/check       检测 UA 是否被屏蔽  {ua}
@@ -20,6 +21,11 @@
 
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once ROOT . '/includes/schema.php';
+
+// 旧数据库自动补齐有效期字段（幂等）
+if (is_installed()) {
+    ensure_lifecycle_schema();
+}
 
 // 强制仅 JSON
 header('Content-Type: application/json; charset=utf-8');
@@ -127,7 +133,10 @@ if ($path !== '/api/v1/health') {
 // 提取路径参数：/api/v1/links/{code}
 $route = '';
 $param = '';
-if (preg_match('#^/api/v1/links/([^/]+)$#', $path, $m)) {
+if (preg_match('#^/api/v1/links/([A-Za-z0-9]{1,32})/clone$#', $path, $m)) {
+    $route = '/api/v1/links/{code}/clone';
+    $param = $m[1];
+} elseif (preg_match('#^/api/v1/links/([^/]+)$#', $path, $m)) {
     $route = '/api/v1/links/{code}';
     $param = $m[1];
 } elseif ($path === '/api/v1/links') {
@@ -159,9 +168,13 @@ if ($route === '/api/v1/links' && $method === 'POST') {
     $url = trim((string)($payload['url'] ?? ''));
     $code = trim((string)($payload['code'] ?? ''));
     $title = trim((string)($payload['title'] ?? ''));
+    $expiry = validate_expiry_input((string)($payload['expires_at'] ?? ''));
 
     if (!is_valid_url($url)) {
         api_fail('url 必须是有效的 http/https 链接');
+    }
+    if (!$expiry['ok']) {
+        api_fail('expires_at: ' . $expiry['error']);
     }
     if ($code !== '' && !preg_match('/^[A-Za-z0-9]{3,32}$/', $code)) {
         api_fail('code 仅支持 3-32 位字母或数字');
@@ -181,20 +194,25 @@ if ($route === '/api/v1/links' && $method === 'POST') {
 
     try {
         db()->prepare(
-            'INSERT INTO links (code, url, title, user_id, status, created_at, updated_at)
-             VALUES (?, ?, ?, ?, 1, ?, ?)'
-        )->execute([$code, $url, mb_substr($title, 0, 200), (int)$token['user_id'], date('Y-m-d H:i:s'), date('Y-m-d H:i:s')]);
+            'INSERT INTO links (code, url, title, user_id, status, expires_at, created_at, updated_at)
+             VALUES (?, ?, ?, ?, 1, ?, ?, ?)'
+        )->execute([
+            $code, $url, mb_substr($title, 0, 200), (int)$token['user_id'], $expiry['value'],
+            date('Y-m-d H:i:s'), date('Y-m-d H:i:s'),
+        ]);
     } catch (Throwable $e) {
         api_fail('创建失败: ' . $e->getMessage(), 500);
     }
 
     log_event('api_shorten', 'API 创建短链接 ' . $code);
     json_response([
-        'ok'       => true,
-        'short'    => short_url($code),
-        'code'     => $code,
-        'long_url' => $url,
-        'title'    => $title,
+        'ok'         => true,
+        'short'      => short_url($code),
+        'code'       => $code,
+        'long_url'   => $url,
+        'title'      => $title,
+        'expires_at' => $expiry['value'],
+        'expired'    => false,
     ], 201);
 }
 
@@ -213,11 +231,12 @@ if ($route === '/api/v1/links' && $method === 'GET') {
     $total = (int)db()->query('SELECT COUNT(*) AS c FROM links' . $where)->fetch()['c'];
     $offset = ($page - 1) * $size;
 
-    $stmt = db()->prepare('SELECT id, code, url, title, clicks, status, created_at, updated_at FROM links' . $where . ' ORDER BY id DESC LIMIT ? OFFSET ?');
+    $stmt = db()->prepare('SELECT id, code, url, title, clicks, status, expires_at, created_at, updated_at FROM links' . $where . ' ORDER BY id DESC LIMIT ? OFFSET ?');
     $stmt->execute([...$params, $size, $offset]);
     $rows = array_map(function ($r) {
         $r['short_url'] = short_url($r['code']);
         $r['clicks'] = (int)$r['clicks'];
+        $r['expired'] = link_is_expired($r);
         return $r;
     }, $stmt->fetchAll());
 
@@ -233,7 +252,7 @@ if ($route === '/api/v1/links' && $method === 'GET') {
 
 // ---------- 查询单个 ----------
 if ($route === '/api/v1/links/{code}' && $method === 'GET') {
-    $stmt = db()->prepare('SELECT id, code, url, title, clicks, status, created_at, updated_at FROM links WHERE code = ? LIMIT 1');
+    $stmt = db()->prepare('SELECT id, code, url, title, clicks, status, expires_at, created_at, updated_at FROM links WHERE code = ? LIMIT 1');
     $stmt->execute([$param]);
     $row = $stmt->fetch();
     if ($row === false) {
@@ -241,6 +260,7 @@ if ($route === '/api/v1/links/{code}' && $method === 'GET') {
     }
     $row['short_url'] = short_url($row['code']);
     $row['clicks'] = (int)$row['clicks'];
+    $row['expired'] = link_is_expired($row);
     json_response(['ok' => true, 'link' => $row]);
 }
 
@@ -257,9 +277,17 @@ if ($route === '/api/v1/links/{code}' && $method === 'PUT') {
     $newCode = trim((string)($payload['code'] ?? $row['code']));
     $newUrl  = trim((string)($payload['url'] ?? $row['url']));
     $newTitle = trim((string)($payload['title'] ?? $row['title']));
+    $expiryRaw = array_key_exists('expires_at', $payload)
+        ? (string)$payload['expires_at']
+        : (string)($row['expires_at'] ?? '');
+    // 编辑允许保留已经过去的有效期，否则已过期链接无法保存其他字段
+    $expiry = validate_expiry_input($expiryRaw, false);
 
     if (!is_valid_url($newUrl)) {
         api_fail('url 必须是有效的 http/https 链接');
+    }
+    if (!$expiry['ok']) {
+        api_fail('expires_at: ' . $expiry['error']);
     }
     if (!preg_match('/^[A-Za-z0-9]{3,32}$/', $newCode)) {
         api_fail('code 仅支持 3-32 位字母或数字');
@@ -273,11 +301,21 @@ if ($route === '/api/v1/links/{code}' && $method === 'PUT') {
         api_fail('短码已被占用: ' . $newCode, 409);
     }
 
-    db()->prepare('UPDATE links SET code = ?, url = ?, title = ?, updated_at = ? WHERE id = ?')
-        ->execute([$newCode, $newUrl, mb_substr($newTitle, 0, 200), date('Y-m-d H:i:s'), (int)$row['id']]);
+    db()->prepare('UPDATE links SET code = ?, url = ?, title = ?, expires_at = ?, updated_at = ? WHERE id = ?')
+        ->execute([
+            $newCode, $newUrl, mb_substr($newTitle, 0, 200), $expiry['value'],
+            date('Y-m-d H:i:s'), (int)$row['id'],
+        ]);
     log_event('api_edit', 'API 更新短链接 ' . $newCode);
 
-    json_response(['ok' => true, 'message' => '更新成功', 'code' => $newCode, 'short_url' => short_url($newCode)]);
+    json_response([
+        'ok'         => true,
+        'message'    => '更新成功',
+        'code'       => $newCode,
+        'short_url'  => short_url($newCode),
+        'expires_at' => $expiry['value'],
+        'expired'    => $expiry['value'] !== null && link_is_expired($expiry['value']),
+    ]);
 }
 
 // ---------- 删除 ----------
@@ -292,6 +330,30 @@ if ($route === '/api/v1/links/{code}' && $method === 'DELETE') {
     db()->prepare('DELETE FROM click_logs WHERE link_id = ?')->execute([(int)$row['id']]);
     log_event('api_delete', 'API 删除短链接 ' . $param);
     json_response(['ok' => true, 'message' => '删除成功']);
+}
+
+// ---------- 一键克隆 ----------
+if ($route === '/api/v1/links/{code}/clone' && $method === 'POST') {
+    $stmt = db()->prepare('SELECT * FROM links WHERE code = ? LIMIT 1');
+    $stmt->execute([$param]);
+    $row = $stmt->fetch();
+    if ($row === false) {
+        api_fail('短链不存在', 404);
+    }
+    try {
+        $clone = clone_link_row($row, (int)$token['user_id']);
+    } catch (Throwable $e) {
+        api_fail('克隆失败: ' . $e->getMessage(), 500);
+    }
+    log_event('api_clone', 'API 克隆短链接 ' . $param . ' -> ' . $clone['code']);
+    json_response([
+        'ok'         => true,
+        'code'       => $clone['code'],
+        'short_url'  => short_url($clone['code']),
+        'source'     => $param,
+        'expires_at' => $clone['expires_at'],
+        'clicks'     => 0,
+    ], 201);
 }
 
 // ---------- 统计 ----------

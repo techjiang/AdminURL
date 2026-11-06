@@ -12,6 +12,7 @@ $activeNav = 'dashboard';
 
 // 统计
 $stats = ['total' => 0, 'clicks' => 0, 'today' => 0, 'pending' => 0];
+$expiryStats = ['expired' => 0, 'expiring' => 0];
 try {
     $stats['total']   = (int)db()->query('SELECT COUNT(*) AS c FROM links')->fetch()['c'];
     $stats['clicks']  = live_total_clicks();
@@ -19,6 +20,7 @@ try {
     $todayStmt->execute([date('Y-m-d 00:00:00')]);
     $stats['today']   = (int)$todayStmt->fetch()['c'];
     $stats['pending'] = (int)db()->query('SELECT COUNT(*) AS c FROM click_logs')->fetch()['c'];
+    $expiryStats      = link_expiry_stats();
 } catch (Throwable $e) {
     // 表未初始化
 }
@@ -59,9 +61,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'quick_c
     } else {
         $longUrl    = trim((string)($_POST['url'] ?? ''));
         $customCode = trim((string)($_POST['code'] ?? ''));
+        $expiry     = validate_expiry_input((string)($_POST['expires_at'] ?? ''));
 
         if (!is_valid_url($longUrl)) {
             $_SESSION['flash_error'] = '请输入有效的 http/https 链接';
+        } elseif (!$expiry['ok']) {
+            $_SESSION['flash_error'] = $expiry['error'];
         } elseif ($customCode !== '' && !preg_match('/^[A-Za-z0-9]{3,32}$/', $customCode)) {
             $_SESSION['flash_error'] = '自定义短码仅支持 3-32 位字母或数字';
         } elseif ($customCode !== '' && is_reserved_code($customCode)) {
@@ -77,10 +82,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'quick_c
 
             try {
                 $stmt = db()->prepare(
-                    'INSERT INTO links (code, url, title, user_id, status, created_at, updated_at)
-                     VALUES (?, ?, ?, ?, 1, ?, ?)'
+                    'INSERT INTO links (code, url, title, user_id, status, expires_at, created_at, updated_at)
+                     VALUES (?, ?, ?, ?, 1, ?, ?, ?)'
                 );
-                $stmt->execute([$code, $longUrl, $title, (int)$adminUser['id'], date('Y-m-d H:i:s'), date('Y-m-d H:i:s')]);
+                $stmt->execute([
+                    $code, $longUrl, $title, (int)$adminUser['id'], $expiry['value'],
+                    date('Y-m-d H:i:s'), date('Y-m-d H:i:s'),
+                ]);
                 $createUrl = short_url($code);
                 $createOk  = true;
                 log_event('shorten', '创建短链接 ' . $code . ' -> ' . mb_substr($longUrl, 0, 120));
@@ -164,7 +172,9 @@ require __DIR__ . '/_header.php';
                 <input type="hidden" name="form" value="quick_create">
                 <input type="url" name="url" placeholder="https://example.com/very/long/path" required maxlength="2048">
                 <input type="text" name="code" placeholder="自定义短码（可选）" maxlength="32" pattern="[A-Za-z0-9]{3,32}">
+                <input type="datetime-local" name="expires_at" title="有效期（留空永久有效）" aria-label="有效期（可选）">
                 <button type="submit" class="btn btn-primary"><?= icon('plus', 'icon-sm') ?> 生成短链</button>
+                <p class="form-help" style="flex:1 1 100%;margin-top:-2px">短码与有效期均可留空：留空时自动生成短码、链接永久有效。</p>
             </form>
 
             <?php if ($createOk && $createUrl !== ''): ?>
@@ -174,6 +184,9 @@ require __DIR__ . '/_header.php';
                         <input type="text" id="new-short-url" value="<?= e($createUrl) ?>" readonly>
                         <button type="button" class="btn btn-copy" data-copy="#new-short-url"><?= icon('copy', 'icon-sm') ?> 复制</button>
                     </div>
+                    <?php if ($expiry['value'] !== null): ?>
+                        <p class="result-tip">有效期至 <?= e($expiry['value']) ?>，到期后自动停止跳转。</p>
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
         </div>
@@ -186,6 +199,7 @@ require __DIR__ . '/_header.php';
                 <div class="kv-row"><span>数据库</span><strong>SQLite</strong></div>
                 <div class="kv-row"><span>短链形式</span><strong class="mono"><?= e(rtrim((string)config('base_url', ''), '/') . short_path_prefix() . '{code}') ?></strong></div>
                 <div class="kv-row"><span>跳转方式</span><strong><?= e((string)setting('redirect_type', '302')) ?></strong></div>
+                <div class="kv-row"><span>已过期 / 7 天内到期</span><strong><?= (int)$expiryStats['expired'] ?> / <?= (int)$expiryStats['expiring'] ?></strong></div>
                 <div class="kv-row"><span>开放使用</span>
                     <?= (string)setting('public_shorten', '0') === '1' ? '<span class="badge badge-ok">已开启</span>' : '<span class="badge">仅管理员</span>' ?>
                 </div>

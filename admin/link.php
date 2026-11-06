@@ -42,11 +42,8 @@ require __DIR__ . '/_header.php';
 <div class="card">
     <div class="card-head">
         <h2><?= icon('info') ?> 链接信息</h2>
-        <?php if ((int)$link['status'] === 1): ?>
-            <span class="badge badge-ok">正常</span>
-        <?php else: ?>
-            <span class="badge badge-warn">已停用</span>
-        <?php endif; ?>
+        <?php $meta = link_status_meta($link); ?>
+        <span class="badge <?= e($meta['class']) ?>"><?= e($meta['label']) ?></span>
     </div>
 
     <label class="field-label">短链接</label>
@@ -59,11 +56,14 @@ require __DIR__ . '/_header.php';
     <div class="kv-list" style="margin-top:18px">
         <div class="kv-row"><span>目标地址</span><strong style="word-break:break-all"><?= e($link['url']) ?></strong></div>
         <div class="kv-row"><span>标题</span><strong><?= e($link['title'] !== '' ? $link['title'] : '—') ?></strong></div>
+        <div class="kv-row"><span>有效期</span><strong class="mono"><?= e(expiry_label($link)) ?></strong></div>
         <div class="kv-row"><span>创建时间</span><strong class="mono"><?= e($link['created_at']) ?></strong></div>
         <div class="kv-row"><span>最后更新</span><strong class="mono"><?= e($link['updated_at']) ?></strong></div>
     </div>
 
     <div class="btn-row" style="margin-top:20px">
+        <a href="<?= e(base_path('/admin/links.php?action=clone&id=' . (int)$link['id'] . '&_csrf=' . urlencode(csrf_token()))) ?>"
+           class="btn btn-ghost btn-sm"><?= icon('copy', 'icon-sm') ?> 一键克隆</a>
         <a href="<?= e(base_path('/admin/links.php?action=edit&id=' . (int)$link['id'])) ?>" class="btn btn-ghost btn-sm"><?= icon('edit', 'icon-sm') ?> 编辑</a>
         <a href="<?= e(base_path('/admin/links.php?action=toggle&id=' . (int)$link['id'] . '&_csrf=' . urlencode(csrf_token()))) ?>"
            class="btn btn-ghost btn-sm" onclick="return confirm('确定<?= (int)$link['status'] === 1 ? '停用' : '启用' ?>该链接吗？')"><?= icon('power', 'icon-sm') ?> <?= (int)$link['status'] === 1 ? '停用' : '启用' ?></a>

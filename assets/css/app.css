@@ -167,7 +167,7 @@ code, pre, .mono { font-family: var(--mono); }
 }
 .form-group > label.switch-row { display: flex; }
 input[type="text"], input[type="url"], input[type="search"], input[type="password"],
-input[type="number"], input[type="email"], select, textarea, .input {
+input[type="number"], input[type="email"], input[type="datetime-local"], select, textarea, .input {
   width: 100%; min-height: 42px; padding: 10px 13px;
   background: var(--surface); border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm); color: var(--text);
@@ -517,6 +517,23 @@ pre, .code-block {
 .quick-form { display: flex; flex-wrap: wrap; gap: 10px; }
 .quick-form > input[type="url"] { flex: 1 1 100%; }
 .quick-form > input[type="text"] { flex: 1 1 150px; }
+.quick-form > input[type="datetime-local"] { flex: 1 1 165px; }
+.quick-create-result .result-tip { color: var(--text-3); }
+.expiry-hint { margin-top: 6px; font-size: 11.5px; color: var(--text-3); white-space: nowrap; }
+
+/* v2.5 批量导入 */
+.import-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.import-grid .card { margin: 0; }
+.import-drop { position: relative; display: block; padding: 20px; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-2); text-align: center; cursor: pointer; }
+.import-drop:hover { border-color: var(--brand); background: var(--brand-soft); }
+.import-drop input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.import-drop .icon { width: 28px; height: 28px; color: var(--brand); margin-bottom: 8px; }
+.import-drop strong { display: block; font-size: 14px; color: var(--text); }
+.import-drop span { display: block; margin-top: 5px; font-size: 12.5px; color: var(--text-3); }
+.import-files { margin-top: 10px; font-size: 12.5px; color: var(--text-3); }
+.import-list { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.9; color: var(--text-2); }
+.import-list code { padding: 2px 6px; border-radius: 5px; background: var(--surface-3); color: var(--brand-ink); font-size: .92em; }
+@media (max-width: 900px) { .import-grid { grid-template-columns: 1fr; } }
 .quick-create-result { margin-top: 16px; padding: 15px; border-radius: var(--radius-sm); background: var(--ok-soft); border: 1px solid rgba(12, 166, 120, .16); }
 .quick-create-result .result-label { color: var(--ok); }
 .quick-create-result .result-url { margin-top: 10px; }

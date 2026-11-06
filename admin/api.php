@@ -48,10 +48,11 @@ $newTokenName = $_SESSION['new_token_name'] ?? '';
 unset($_SESSION['new_token'], $_SESSION['new_token_name']);
 
 $endpoints = [
-    ['POST',   '/api/v1/links',        '创建短链',        'url 必填，code / title 可选'],
+    ['POST',   '/api/v1/links',        '创建短链',        'url 必填，code / title / expires_at 可选'],
     ['GET',    '/api/v1/links',        '查询短链列表',    '支持 page / size / q 参数'],
-    ['GET',    '/api/v1/links/{code}', '查询单个短链',    '返回链接详情与点击数'],
-    ['PUT',    '/api/v1/links/{code}', '更新短链',        '可修改 url / title / code'],
+    ['GET',    '/api/v1/links/{code}', '查询单个短链',    '返回链接详情、有效期与点击数'],
+    ['PUT',    '/api/v1/links/{code}', '更新短链',        '可修改 url / title / code / expires_at'],
+    ['POST',   '/api/v1/links/{code}/clone', '一键克隆', '生成新短码，点击数从 0 开始'],
     ['DELETE', '/api/v1/links/{code}', '删除短链',        '删除后不可恢复'],
     ['GET',    '/api/v1/stats',        '统计概览',        '总量、点击量与今日新增'],
     ['POST',   '/api/v1/ua/check',     '检测 UA 屏蔽',    '提交 ua 判断是否命中规则'],
@@ -151,7 +152,13 @@ require __DIR__ . '/_header.php';
 
     <h3 style="margin:24px 0 10px;font-size:14px">创建短链请求体</h3>
     <pre><code>POST <?= e(base_path('/api/v1/links')) ?>  Content-Type: application/json
-{ "url": "https://example.com/very/long/path", "code": "optional", "title": "optional" }</code></pre>
+{ "url": "https://example.com/very/long/path", "code": "optional", "title": "optional",
+  "expires_at": "2026-12-31 23:59" }</code></pre>
+    <p class="form-help"><code>expires_at</code> 可选，支持 <code>YYYY-MM-DD HH:MM:SS</code> 与 <code>YYYY-MM-DD HH:MM</code>；传空字符串表示永久有效。列表 / 详情响应中会额外返回 <code>expires_at</code> 与 <code>expired</code> 字段。</p>
+
+    <h3 style="margin:24px 0 10px;font-size:14px">一键克隆</h3>
+    <pre><code>POST <?= e(base_path('/api/v1/links/{code}/clone')) ?>  Authorization: Bearer YOUR_TOKEN</code></pre>
+    <p class="form-help">复制目标地址、标题与尚未到期的有效期，自动生成新短码；新链接默认启用且点击数从 0 开始。</p>
 
     <h3 style="margin:24px 0 10px;font-size:14px">curl 示例</h3>
     <pre><code>curl -X POST <?= e(base_path('/api/v1/links')) ?> \
