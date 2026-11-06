@@ -34,6 +34,8 @@ $longUrl  = '';
 $customCode = '';
 $expiryRaw = '';
 $expiryValue = null;
+$tagRaw = '';
+$tagValue = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf($_POST['_csrf'] ?? null)) {
@@ -43,6 +45,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $customCode = trim((string)($_POST['code'] ?? ''));
         $expiryRaw  = trim((string)($_POST['expires_at'] ?? ''));
         $expiry     = validate_expiry_input($expiryRaw);
+        $tagRaw     = trim((string)($_POST['tag'] ?? ''));
+        $tagValue   = normalize_tag($tagRaw);
 
         if (!is_valid_url($longUrl)) {
             $error = '请输入有效的 http/https 链接';
@@ -63,10 +67,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             try {
                 $stmt = db()->prepare(
-                    'INSERT INTO links (code, url, title, user_id, status, expires_at, created_at, updated_at)
-                     VALUES (?, ?, ?, 0, 1, ?, ?, ?)'
+                    'INSERT INTO links (code, url, title, user_id, status, expires_at, tag, created_at, updated_at)
+                     VALUES (?, ?, ?, 0, 1, ?, ?, ?, ?)'
                 );
-                $stmt->execute([$code, $longUrl, $title, $expiry['value'], date('Y-m-d H:i:s'), date('Y-m-d H:i:s')]);
+                $stmt->execute([$code, $longUrl, $title, $expiry['value'], $tagValue, date('Y-m-d H:i:s'), date('Y-m-d H:i:s')]);
                 $shortUrl = short_url($code);
                 $expiryValue = $expiry['value'];
                 log_event('public_shorten', '公开创建短链接 ' . $code);
@@ -135,6 +139,8 @@ require ROOT . '/includes/templates/header.php';
                         <span class="form-help">3-32 位字母或数字</span>
                         <span class="form-help" style="flex:1 1 100%;margin:4px 0 0">有效期（可选）：留空永久有效，到期后短链自动停止跳转</span>
                         <input type="datetime-local" name="expires_at" value="<?= e(expiry_for_input($expiryRaw)) ?>" aria-label="有效期（可选）">
+                        <span class="form-help" style="flex:1 1 100%;margin:4px 0 0">分组标签（可选）：便于在后台归类与筛选，最多 32 字</span>
+                        <input type="text" name="tag" value="<?= e($tagRaw) ?>" maxlength="32" placeholder="例如：活动推广" aria-label="分组标签（可选）">
                     </div>
                 </details>
                 <?php if ($error !== ''): ?>

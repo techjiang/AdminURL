@@ -48,6 +48,9 @@ require_once ROOT . '/includes/version.php';
 require_once ROOT . '/includes/stats.php';
 require_once ROOT . '/includes/chart.php';
 require_once ROOT . '/includes/lifecycle.php';
+require_once ROOT . '/includes/tagging.php';
+require_once ROOT . '/includes/health.php';
+require_once ROOT . '/includes/audience.php';
 
 // 安全响应头
 header('X-Frame-Options: SAMEORIGIN');

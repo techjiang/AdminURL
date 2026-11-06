@@ -32,7 +32,21 @@ function ensure_lifecycle_schema(): void
         if (!in_array('expires_at', $columns, true)) {
             $pdo->exec('ALTER TABLE links ADD COLUMN expires_at TEXT DEFAULT NULL');
         }
+        if (!in_array('tag', $columns, true)) {
+            $pdo->exec("ALTER TABLE links ADD COLUMN tag TEXT NOT NULL DEFAULT ''");
+        }
+        if (!in_array('check_code', $columns, true)) {
+            $pdo->exec('ALTER TABLE links ADD COLUMN check_code INTEGER DEFAULT NULL');
+        }
+        if (!in_array('checked_at', $columns, true)) {
+            $pdo->exec('ALTER TABLE links ADD COLUMN checked_at TEXT DEFAULT NULL');
+        }
+        if (!in_array('device', array_map(static fn($c) => (string)$c['name'], $pdo->query('PRAGMA table_info(click_logs)')->fetchAll()), true)) {
+            $pdo->exec("ALTER TABLE click_logs ADD COLUMN device TEXT NOT NULL DEFAULT ''");
+        }
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_links_expires ON links (expires_at)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_links_tag ON links (tag)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_click_logs_device ON click_logs (device)');
     } catch (Throwable $e) {
         // 升级失败时保持原有行为：未设置有效期的链接仍然永久有效
     }
@@ -162,7 +176,7 @@ function link_expiry_stats(int $days = 7): array
  * 新链接默认启用、点击数从 0 开始；若原链接已经过期，则不再继承过期时间，
  * 避免克隆出来立刻无法访问。
  *
- * @return array{code: string, expires_at: ?string}
+ * @return array{code: string, expires_at: ?string, tag: string}
  */
 function clone_link_row(array $row, int $userId = 0): array
 {
@@ -174,17 +188,22 @@ function clone_link_row(array $row, int $userId = 0): array
     $code = generate_unique_code((int)config('code_length', 5));
     $now = date('Y-m-d H:i:s');
     db()->prepare(
-        'INSERT INTO links (code, url, title, user_id, status, expires_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 1, ?, ?, ?)'
+        'INSERT INTO links (code, url, title, user_id, status, expires_at, tag, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)'
     )->execute([
         $code,
         (string)$row['url'],
         (string)($row['title'] ?? ''),
         $userId,
         $expiry !== '' ? $expiry : null,
+        (string)($row['tag'] ?? ''),
         $now,
         $now,
     ]);
 
-    return ['code' => $code, 'expires_at' => $expiry !== '' ? $expiry : null];
+    return [
+        'code'       => $code,
+        'expires_at' => $expiry !== '' ? $expiry : null,
+        'tag'        => (string)($row['tag'] ?? ''),
+    ];
 }

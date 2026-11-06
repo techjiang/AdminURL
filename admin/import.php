@@ -25,9 +25,9 @@ if (($_GET['action'] ?? '') === 'template') {
     header('Cache-Control: no-store, no-cache, must-revalidate');
     header('X-Content-Type-Options: nosniff');
     echo "\xEF\xBB\xBF";
-    echo "url,code,title,expires_at\n";
-    echo "https://example.com/page-a,pagea,示例标题一,\n";
-    echo "https://example.com/page-b,,示例标题二," . date('Y-m-d H:i:s', time() + 7 * 86400) . "\n";
+    echo "url,code,title,expires_at,tag\n";
+    echo "https://example.com/page-a,pagea,示例标题一,,活动推广\n";
+    echo "https://example.com/page-b,,示例标题二," . date('Y-m-d H:i:s', time() + 7 * 86400) . ",官网链接\n";
     exit;
 }
 
@@ -103,6 +103,11 @@ function import_csv_key(string $name): string
         'expire'      => 'expires_at',
         '有效期'       => 'expires_at',
         '过期时间'     => 'expires_at',
+        'tag'         => 'tag',
+        'label'       => 'tag',
+        '分组'         => 'tag',
+        '标签'         => 'tag',
+        '分组标签'     => 'tag',
     ];
     return $aliases[$name] ?? $name;
 }
@@ -164,7 +169,7 @@ function parse_import_csv(string $text, string &$error): array
                 }
                 continue;
             }
-            $map = ['url' => 0, 'code' => 1, 'title' => 2, 'expires_at' => 3];
+            $map = ['url' => 0, 'code' => 1, 'title' => 2, 'expires_at' => 3, 'tag' => 4];
         }
 
         if (count($rows) >= IMPORT_MAX_ROWS) {
@@ -181,6 +186,7 @@ function parse_import_csv(string $text, string &$error): array
             'code'       => $get('code'),
             'title'      => $get('title'),
             'expires_at' => $get('expires_at'),
+            'tag'        => $get('tag'),
         ];
     }
     fclose($stream);
@@ -203,8 +209,8 @@ function import_link_rows(array $rows, int $userId): array
     $now      = date('Y-m-d H:i:s');
 
     $insert = db()->prepare(
-        'INSERT INTO links (code, url, title, user_id, status, expires_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 1, ?, ?, ?)'
+        'INSERT INTO links (code, url, title, user_id, status, expires_at, tag, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)'
     );
 
     db()->beginTransaction();
@@ -214,7 +220,8 @@ function import_link_rows(array $rows, int $userId): array
             $url    = trim((string)$row['url']);
             $code   = trim((string)$row['code']);
             $title  = trim((string)$row['title']);
-            $rawExp = trim((string)$row['expires_at']);
+            $rawExp  = trim((string)$row['expires_at']);
+            $tagValue = normalize_tag((string)$row['tag']);
 
             if (!is_valid_url($url)) {
                 $skipped++;
@@ -249,7 +256,7 @@ function import_link_rows(array $rows, int $userId): array
 
             $insert->execute([
                 $code, $url, mb_substr($title, 0, 200), $userId,
-                $expiry['value'], $now, $now,
+                $expiry['value'], $tagValue, $now, $now,
             ]);
             $imported++;
             if (count($created) < 10) {
@@ -315,6 +322,7 @@ require __DIR__ . '/_header.php';
             <li><code>code</code> 可选，3-32 位字母数字；留空自动生成，重复或系统保留短码会跳过。</li>
             <li><code>title</code> 可选，最长 200 字。</li>
             <li><code>expires_at</code> 可选，如 <code>2026-12-31 23:59</code>；留空永久有效。</li>
+            <li><code>tag</code> 可选，分组标签（最多 32 字），也支持中文表头「分组」。</li>
         </ul>
         <div class="notice-box" style="margin-top:16px">
             <p><?= icon('shield', 'icon-sm') ?> 所有行在同一个事务中写入：只要出现数据库错误，本次导入会整体回滚，不会留下半截数据。</p>

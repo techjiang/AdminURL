@@ -9,8 +9,8 @@
  *   2. ?access_token=<token>
  *
  * 端点一览：
- *   POST /api/v1/links          创建短链     {url, code?, title?, expires_at?}
- *   GET  /api/v1/links          链接列表     {page?, size?, q?}
+ *   POST /api/v1/links          创建短链     {url, code?, title?, expires_at?, tag?}
+ *   GET  /api/v1/links          链接列表     {page?, size?, q?, tag?}
  *   GET  /api/v1/links/{code}   查询单个
  *   PUT  /api/v1/links/{code}   更新短链     {url?, title?, code?, expires_at?}
  *   POST /api/v1/links/{code}/clone 一键克隆（生成新短码，点击数从 0 开始）
@@ -169,6 +169,7 @@ if ($route === '/api/v1/links' && $method === 'POST') {
     $code = trim((string)($payload['code'] ?? ''));
     $title = trim((string)($payload['title'] ?? ''));
     $expiry = validate_expiry_input((string)($payload['expires_at'] ?? ''));
+    $tag    = normalize_tag((string)($payload['tag'] ?? ''));
 
     if (!is_valid_url($url)) {
         api_fail('url 必须是有效的 http/https 链接');
@@ -194,10 +195,10 @@ if ($route === '/api/v1/links' && $method === 'POST') {
 
     try {
         db()->prepare(
-            'INSERT INTO links (code, url, title, user_id, status, expires_at, created_at, updated_at)
-             VALUES (?, ?, ?, ?, 1, ?, ?, ?)'
+            'INSERT INTO links (code, url, title, user_id, status, expires_at, tag, created_at, updated_at)
+             VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)'
         )->execute([
-            $code, $url, mb_substr($title, 0, 200), (int)$token['user_id'], $expiry['value'],
+            $code, $url, mb_substr($title, 0, 200), (int)$token['user_id'], $expiry['value'], $tag,
             date('Y-m-d H:i:s'), date('Y-m-d H:i:s'),
         ]);
     } catch (Throwable $e) {
@@ -212,6 +213,7 @@ if ($route === '/api/v1/links' && $method === 'POST') {
         'long_url'   => $url,
         'title'      => $title,
         'expires_at' => $expiry['value'],
+        'tag'        => $tag,
         'expired'    => false,
     ], 201);
 }
@@ -221,17 +223,25 @@ if ($route === '/api/v1/links' && $method === 'GET') {
     $page = max(1, (int)($_GET['page'] ?? 1));
     $size = min(100, max(1, (int)($_GET['size'] ?? 20)));
     $q = trim((string)($_GET['q'] ?? ''));
+    $tag = trim((string)($_GET['tag'] ?? ''));
 
-    $where = '';
+    $conditions = [];
     $params = [];
     if ($q !== '') {
-        $where = ' WHERE (code LIKE ? OR url LIKE ? OR title LIKE ?)';
-        $params = ["%$q%", "%$q%", "%$q%"];
+        $conditions[] = '(code LIKE ? OR url LIKE ? OR title LIKE ?)';
+        array_push($params, "%$q%", "%$q%", "%$q%");
     }
+    if ($tag === '__none') {
+        $conditions[] = "tag = ''";
+    } elseif ($tag !== '') {
+        $conditions[] = 'tag = ?';
+        $params[] = $tag;
+    }
+    $where = $conditions !== [] ? ' WHERE ' . implode(' AND ', $conditions) : '';
     $total = (int)db()->query('SELECT COUNT(*) AS c FROM links' . $where)->fetch()['c'];
     $offset = ($page - 1) * $size;
 
-    $stmt = db()->prepare('SELECT id, code, url, title, clicks, status, expires_at, created_at, updated_at FROM links' . $where . ' ORDER BY id DESC LIMIT ? OFFSET ?');
+    $stmt = db()->prepare('SELECT id, code, url, title, clicks, status, expires_at, tag, created_at, updated_at FROM links' . $where . ' ORDER BY id DESC LIMIT ? OFFSET ?');
     $stmt->execute([...$params, $size, $offset]);
     $rows = array_map(function ($r) {
         $r['short_url'] = short_url($r['code']);
@@ -252,7 +262,7 @@ if ($route === '/api/v1/links' && $method === 'GET') {
 
 // ---------- 查询单个 ----------
 if ($route === '/api/v1/links/{code}' && $method === 'GET') {
-    $stmt = db()->prepare('SELECT id, code, url, title, clicks, status, expires_at, created_at, updated_at FROM links WHERE code = ? LIMIT 1');
+    $stmt = db()->prepare('SELECT id, code, url, title, clicks, status, expires_at, tag, created_at, updated_at FROM links WHERE code = ? LIMIT 1');
     $stmt->execute([$param]);
     $row = $stmt->fetch();
     if ($row === false) {
@@ -282,6 +292,9 @@ if ($route === '/api/v1/links/{code}' && $method === 'PUT') {
         : (string)($row['expires_at'] ?? '');
     // 编辑允许保留已经过去的有效期，否则已过期链接无法保存其他字段
     $expiry = validate_expiry_input($expiryRaw, false);
+    $newTag = array_key_exists('tag', $payload)
+        ? normalize_tag((string)$payload['tag'])
+        : (string)($row['tag'] ?? '');
 
     if (!is_valid_url($newUrl)) {
         api_fail('url 必须是有效的 http/https 链接');
@@ -301,9 +314,9 @@ if ($route === '/api/v1/links/{code}' && $method === 'PUT') {
         api_fail('短码已被占用: ' . $newCode, 409);
     }
 
-    db()->prepare('UPDATE links SET code = ?, url = ?, title = ?, expires_at = ?, updated_at = ? WHERE id = ?')
+    db()->prepare('UPDATE links SET code = ?, url = ?, title = ?, expires_at = ?, tag = ?, updated_at = ? WHERE id = ?')
         ->execute([
-            $newCode, $newUrl, mb_substr($newTitle, 0, 200), $expiry['value'],
+            $newCode, $newUrl, mb_substr($newTitle, 0, 200), $expiry['value'], $newTag,
             date('Y-m-d H:i:s'), (int)$row['id'],
         ]);
     log_event('api_edit', 'API 更新短链接 ' . $newCode);
@@ -314,6 +327,7 @@ if ($route === '/api/v1/links/{code}' && $method === 'PUT') {
         'code'       => $newCode,
         'short_url'  => short_url($newCode),
         'expires_at' => $expiry['value'],
+        'tag'        => $newTag,
         'expired'    => $expiry['value'] !== null && link_is_expired($expiry['value']),
     ]);
 }
@@ -352,6 +366,7 @@ if ($route === '/api/v1/links/{code}/clone' && $method === 'POST') {
         'short_url'  => short_url($clone['code']),
         'source'     => $param,
         'expires_at' => $clone['expires_at'],
+        'tag'        => $clone['tag'],
         'clicks'     => 0,
     ], 201);
 }

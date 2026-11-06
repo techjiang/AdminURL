@@ -56,6 +56,11 @@ require __DIR__ . '/_header.php';
     <div class="kv-list" style="margin-top:18px">
         <div class="kv-row"><span>目标地址</span><strong style="word-break:break-all"><?= e($link['url']) ?></strong></div>
         <div class="kv-row"><span>标题</span><strong><?= e($link['title'] !== '' ? $link['title'] : '—') ?></strong></div>
+        <div class="kv-row"><span>分组标签</span><strong>
+            <?php if (trim((string)($link['tag'] ?? '')) !== ''): ?>
+                <span class="tag-chip" style="--tag-hue:<?= tag_hue((string)$link['tag']) ?>"><?= e($link['tag']) ?></span>
+            <?php else: ?>未分组<?php endif; ?>
+        </strong></div>
         <div class="kv-row"><span>有效期</span><strong class="mono"><?= e(expiry_label($link)) ?></strong></div>
         <div class="kv-row"><span>创建时间</span><strong class="mono"><?= e($link['created_at']) ?></strong></div>
         <div class="kv-row"><span>最后更新</span><strong class="mono"><?= e($link['updated_at']) ?></strong></div>

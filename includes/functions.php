@@ -495,6 +495,10 @@ function link_filter_from_request(): array
     if (!in_array($sort, ['', 'clicks', 'code', 'expiry'], true)) {
         $sort = '';
     }
+    $tag = trim((string)($_GET['tag'] ?? ''));
+    if ($tag !== '__none' && mb_strlen($tag) > 32) {
+        $tag = mb_substr($tag, 0, 32);
+    }
 
     $conditions = [];
     $params = [];
@@ -512,6 +516,12 @@ function link_filter_from_request(): array
         $conditions[] = "expires_at IS NOT NULL AND expires_at <> '' AND expires_at <= ?";
         $params[] = date('Y-m-d H:i:s');
     }
+    if ($tag === '__none') {
+        $conditions[] = "tag = ''";
+    } elseif ($tag !== '') {
+        $conditions[] = 'tag = ?';
+        $params[] = $tag;
+    }
 
     $where = $conditions !== [] ? 'WHERE ' . implode(' AND ', $conditions) : '';
     if ($sort === 'clicks') {
@@ -528,11 +538,13 @@ function link_filter_from_request(): array
     if ($search !== '') { $parts['q'] = $search; }
     if ($status !== '') { $parts['status'] = $status; }
     if ($sort !== '')   { $parts['sort'] = $sort; }
+    if ($tag !== '')    { $parts['tag'] = $tag; }
 
     return [
         'search' => $search,
         'status' => $status,
         'sort'   => $sort,
+        'tag'    => $tag,
         'where'  => $where,
         'params' => $params,
         'order'  => $order,

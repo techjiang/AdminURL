@@ -62,6 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'quick_c
         $longUrl    = trim((string)($_POST['url'] ?? ''));
         $customCode = trim((string)($_POST['code'] ?? ''));
         $expiry     = validate_expiry_input((string)($_POST['expires_at'] ?? ''));
+        $newTag     = normalize_tag((string)($_POST['tag'] ?? ''));
 
         if (!is_valid_url($longUrl)) {
             $_SESSION['flash_error'] = '请输入有效的 http/https 链接';
@@ -82,11 +83,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'quick_c
 
             try {
                 $stmt = db()->prepare(
-                    'INSERT INTO links (code, url, title, user_id, status, expires_at, created_at, updated_at)
-                     VALUES (?, ?, ?, ?, 1, ?, ?, ?)'
+                    'INSERT INTO links (code, url, title, user_id, status, expires_at, tag, created_at, updated_at)
+                     VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)'
                 );
                 $stmt->execute([
-                    $code, $longUrl, $title, (int)$adminUser['id'], $expiry['value'],
+                    $code, $longUrl, $title, (int)$adminUser['id'], $expiry['value'], $newTag,
                     date('Y-m-d H:i:s'), date('Y-m-d H:i:s'),
                 ]);
                 $createUrl = short_url($code);
@@ -173,8 +174,9 @@ require __DIR__ . '/_header.php';
                 <input type="url" name="url" placeholder="https://example.com/very/long/path" required maxlength="2048">
                 <input type="text" name="code" placeholder="自定义短码（可选）" maxlength="32" pattern="[A-Za-z0-9]{3,32}">
                 <input type="datetime-local" name="expires_at" title="有效期（留空永久有效）" aria-label="有效期（可选）">
+                <input type="text" name="tag" placeholder="分组标签（可选）" maxlength="32" aria-label="分组标签（可选）">
                 <button type="submit" class="btn btn-primary"><?= icon('plus', 'icon-sm') ?> 生成短链</button>
-                <p class="form-help" style="flex:1 1 100%;margin-top:-2px">短码与有效期均可留空：留空时自动生成短码、链接永久有效。</p>
+                <p class="form-help" style="flex:1 1 100%;margin-top:-2px">短码、有效期与分组均可留空：留空时自动生成短码、链接永久有效且未分组。</p>
             </form>
 
             <?php if ($createOk && $createUrl !== ''): ?>

@@ -15,6 +15,7 @@ $filter    = link_filter_from_request();
 $search    = $filter['search'];
 $status    = $filter['status'];
 $sort      = $filter['sort'];
+$tag       = $filter['tag'];
 $baseQuery = $filter['query'];
 $extra     = $baseQuery !== '' ? '&' . $baseQuery : '';
 $listUrl   = base_path('/admin/links.php' . ($baseQuery !== '' ? '?' . $baseQuery : ''));
@@ -138,6 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'edit_li
         $ecode  = trim((string)($_POST['code'] ?? ''));
         // 编辑允许保留已过去的有效期，否则已过期链接无法保存其他字段
         $eexpiry = validate_expiry_input((string)($_POST['expires_at'] ?? ''), false);
+        $etag    = normalize_tag((string)($_POST['tag'] ?? ''));
 
         if (!is_valid_url($eurl)) {
             $_SESSION['edit_error'] = '目标地址必须是有效的 http/https 链接';
@@ -156,9 +158,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'edit_li
                 if ($etitle === '' && (string)setting('auto_title', '1') === '1') {
                     $etitle = fetch_page_title($eurl, (int)config('fetch_timeout', 6));
                 }
-                db()->prepare('UPDATE links SET code = ?, url = ?, title = ?, expires_at = ?, updated_at = ? WHERE id = ?')
+                db()->prepare('UPDATE links SET code = ?, url = ?, title = ?, expires_at = ?, tag = ?, updated_at = ? WHERE id = ?')
                     ->execute([
-                        $ecode, $eurl, mb_substr($etitle, 0, 200), $eexpiry['value'],
+                        $ecode, $eurl, mb_substr($etitle, 0, 200), $eexpiry['value'], $etag,
                         date('Y-m-d H:i:s'), $eid,
                     ]);
                 log_event('link_edit', '编辑短链接 ' . $ecode);
@@ -192,7 +194,8 @@ $stmt = db()->prepare('SELECT * FROM links ' . $where . ' ' . $order . ' LIMIT ?
 $stmt->execute([...$params, $perPage, $offset]);
 $links = $stmt->fetchAll();
 
-$exportUrl = base_path('/admin/export.php?_csrf=' . urlencode(csrf_token()) . $extra);
+$exportUrl  = base_path('/admin/export.php?_csrf=' . urlencode(csrf_token()) . $extra);
+$tagOptions = tag_list();
 
 require __DIR__ . '/_header.php';
 ?>
@@ -232,6 +235,15 @@ require __DIR__ . '/_header.php';
             <option value="1" <?= $status === '1' ? 'selected' : '' ?>>正常</option>
             <option value="0" <?= $status === '0' ? 'selected' : '' ?>>已停用</option>
             <option value="expired" <?= $status === 'expired' ? 'selected' : '' ?>>已过期</option>
+        </select>
+        <label for="filter-tag">分组</label>
+        <select name="tag" id="filter-tag">
+            <option value="" <?= $tag === '' ? 'selected' : '' ?>>全部分组</option>
+            <option value="__none" <?= $tag === '__none' ? 'selected' : '' ?>>未分组</option>
+            <?php foreach ($tagOptions as $t): ?>
+                <?php if ((string)$t['tag'] === '') { continue; } ?>
+                <option value="<?= e($t['tag']) ?>" <?= $tag === (string)$t['tag'] ? 'selected' : '' ?>><?= e($t['tag']) ?> (<?= (int)$t['links'] ?>)</option>
+            <?php endforeach; ?>
         </select>
         <label for="filter-sort">排序</label>
         <select name="sort" id="filter-sort">
@@ -279,6 +291,10 @@ require __DIR__ . '/_header.php';
                             <td>
                                 <a href="<?= e(short_url($row['code'])) ?>" target="_blank" rel="noopener" class="code-chip"><?= e($row['code']) ?></a>
                                 <button type="button" class="link-copy" data-copy-url="<?= e(short_url($row['code'])) ?>" title="复制短链"><?= icon('copy', 'icon-sm') ?></button>
+                                <?php if (trim((string)($row['tag'] ?? '')) !== ''): ?>
+                                    <a class="tag-chip" style="--tag-hue:<?= tag_hue((string)$row['tag']) ?>"
+                                       href="<?= e(base_path('/admin/links.php?tag=' . urlencode((string)$row['tag']))) ?>"><?= e($row['tag']) ?></a>
+                                <?php endif; ?>
                             </td>
                             <td class="td-title" title="<?= e($row['url']) ?>"><?= e($row['title'] !== '' ? $row['title'] : '—') ?></td>
                             <td class="td-url" title="<?= e($row['url']) ?>">
@@ -369,6 +385,17 @@ require __DIR__ . '/_header.php';
                 <label for="edit-expires">有效期</label>
                 <input type="datetime-local" id="edit-expires" name="expires_at" value="<?= e(expiry_for_input($editRow['expires_at'] ?? '')) ?>">
                 <p class="form-help">留空表示永久有效；到期后短链自动停止跳转。</p>
+            </div>
+            <div class="form-group">
+                <label for="edit-tag">分组标签</label>
+                <input type="text" id="edit-tag" name="tag" list="tag-suggestions" value="<?= e($editRow['tag'] ?? '') ?>" maxlength="32" placeholder="例如：活动推广">
+                <datalist id="tag-suggestions">
+                    <?php foreach ($tagOptions as $t): ?>
+                        <?php if ((string)$t['tag'] === '') { continue; } ?>
+                        <option value="<?= e($t['tag']) ?>"></option>
+                    <?php endforeach; ?>
+                </datalist>
+                <p class="form-help">留空表示未分组；最多 32 字，可用于筛选与统计。</p>
             </div>
 
             <?php if (!empty($_SESSION['edit_error'])): ?>

@@ -18,6 +18,7 @@ $navGroups = [
     ],
     '链接管理' => [
         'links'   => ['全部链接', base_path('/admin/links.php'), 'link'],
+        'tags'    => ['分组标签', base_path('/admin/tags.php'), 'layers'],
         'import'  => ['批量导入', base_path('/admin/import.php'), 'upload'],
         'migrate' => ['数据迁移', base_path('/admin/migrate.php'), 'database'],
     ],

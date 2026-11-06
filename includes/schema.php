@@ -34,6 +34,9 @@ CREATE TABLE IF NOT EXISTS links (
     clicks     INTEGER NOT NULL DEFAULT 0,
     status     INTEGER NOT NULL DEFAULT 1,
     expires_at TEXT DEFAULT NULL,
+    tag        TEXT NOT NULL DEFAULT '',
+    check_code INTEGER DEFAULT NULL,
+    checked_at TEXT DEFAULT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 )
@@ -42,6 +45,7 @@ SQL);
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_links_code ON links (code)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_links_created ON links (created_at DESC)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_links_expires ON links (expires_at)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_links_tag ON links (tag)');
 
     // 点击日志：延迟计数的缓冲队列
     $pdo->exec(<<<'SQL'
@@ -51,12 +55,14 @@ CREATE TABLE IF NOT EXISTS click_logs (
     ip         TEXT NOT NULL DEFAULT '',
     ua         TEXT NOT NULL DEFAULT '',
     referer    TEXT NOT NULL DEFAULT '',
+    device     TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
 )
 SQL);
 
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_click_logs_link ON click_logs (link_id)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_click_logs_created ON click_logs (created_at)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_click_logs_device ON click_logs (device)');
 
     $pdo->exec(<<<'SQL'
 CREATE TABLE IF NOT EXISTS click_daily (

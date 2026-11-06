@@ -41,7 +41,7 @@ header('X-Content-Type-Options: nosniff');
 
 $out = fopen('php://output', 'w');
 fwrite($out, "\xEF\xBB\xBF");
-fputcsv($out, ['短码', '短链接', '目标地址', '标题', '点击', '状态', '有效期', '创建时间', '更新时间']);
+fputcsv($out, ['短码', '短链接', '目标地址', '标题', '点击', '状态', '分组', '有效期', '创建时间', '更新时间']);
 
 while ($row = $stmt->fetch()) {
     fputcsv($out, [
@@ -51,6 +51,7 @@ while ($row = $stmt->fetch()) {
         csv_safe_cell((string)$row['title']),
         (int)$row['clicks'],
         csv_safe_cell(link_status_meta($row)['label']),
+        csv_safe_cell((string)($row['tag'] ?? '')),
         csv_safe_cell(expiry_label($row)),
         (string)$row['created_at'],
         (string)$row['updated_at'],
