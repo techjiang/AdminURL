@@ -150,9 +150,18 @@ function audience_summary(int $days = 30): array
     foreach ($breakdown['devices'] as $row) {
         $total += (int)$row['c'];
     }
+    $hostCount = 0;
+    try {
+        $since = date('Y-m-d', time() - ($days - 1) * 86400);
+        $stmt = db()->prepare('SELECT COUNT(DISTINCT host) FROM click_audience WHERE day >= ?');
+        $stmt->execute([$since]);
+        $hostCount = (int)$stmt->fetchColumn();
+    } catch (Throwable $e) {
+        // 忽略统计异常
+    }
     return [
         'total'      => $total,
-        'hosts'      => count($breakdown['hosts']),
+        'hosts'      => $hostCount,
         'top_device' => (string)($breakdown['devices'][0]['device'] ?? '暂无数据'),
     ];
 }

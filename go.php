@@ -158,6 +158,10 @@ function record_click_delayed(int $linkId): void
             mb_substr((string)($_SERVER['HTTP_REFERER'] ?? ''), 0, 500),
             date('Y-m-d H:i:s'),
         ]);
+        record_click_audience(
+            (string)($_SERVER['HTTP_REFERER'] ?? ''),
+            (string)($_SERVER['HTTP_USER_AGENT'] ?? '')
+        );
         maybe_flush_clicks();
     } catch (Throwable $e) {
         // 计数失败不影响跳转

@@ -55,5 +55,6 @@ require_once ROOT . '/includes/audience.php';
 // 安全响应头
 header('X-Frame-Options: SAMEORIGIN');
 header('X-Content-Type-Options: nosniff');
-header('Referrer-Policy: no-referrer');
+// 只向跨站暴露来源域名（不暴露路径），兼顾隐私与访问来源统计
+header('Referrer-Policy: strict-origin-when-cross-origin');
 header('X-XSS-Protection: 1; mode=block');
