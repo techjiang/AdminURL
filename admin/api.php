@@ -53,7 +53,7 @@ $endpoints = [
     ['GET',    '/api/v1/links/{code}', '查询单个短链',    '返回链接详情、有效期与点击数'],
     ['PUT',    '/api/v1/links/{code}', '更新短链',        '可修改 url / title / code / expires_at / access_password'],
     ['POST',   '/api/v1/links/{code}/clone', '一键克隆', '生成新短码，点击数从 0 开始'],
-    ['DELETE', '/api/v1/links/{code}', '删除短链',        '删除后不可恢复'],
+    ['DELETE', '/api/v1/links/{code}', '删除短链',        '移入回收站，可在后台恢复'],
     ['GET',    '/api/v1/stats',        '统计概览',        '总量、点击量与今日新增'],
     ['POST',   '/api/v1/ua/check',     '检测 UA 屏蔽',    '提交 ua 判断是否命中规则'],
     ['GET',    '/api/v1/health',       '健康检查',        '无需鉴权'],

@@ -351,16 +351,19 @@ if ($route === '/api/v1/links/{code}' && $method === 'PUT') {
 
 // ---------- 删除 ----------
 if ($route === '/api/v1/links/{code}' && $method === 'DELETE') {
-    $stmt = db()->prepare('SELECT id FROM links WHERE code = ? LIMIT 1');
+    $stmt = db()->prepare('SELECT * FROM links WHERE code = ? LIMIT 1');
     $stmt->execute([$param]);
     $row = $stmt->fetch();
     if ($row === false) {
         api_fail('短链不存在', 404);
     }
-    db()->prepare('DELETE FROM links WHERE id = ?')->execute([(int)$row['id']]);
-    db()->prepare('DELETE FROM click_logs WHERE link_id = ?')->execute([(int)$row['id']]);
-    log_event('api_delete', 'API 删除短链接 ' . $param);
-    json_response(['ok' => true, 'message' => '删除成功']);
+    $trashed = trash_link_row($row, (int)$token['user_id']);
+    if (!$trashed) {
+        db()->prepare('DELETE FROM links WHERE id = ?')->execute([(int)$row['id']]);
+        db()->prepare('DELETE FROM click_logs WHERE link_id = ?')->execute([(int)$row['id']]);
+    }
+    log_event('api_delete', 'API 删除短链接 ' . $param . ($trashed ? '（已移入回收站）' : ''));
+    json_response(['ok' => true, 'message' => '删除成功', 'trashed' => $trashed]);
 }
 
 // ---------- 一键克隆 ----------

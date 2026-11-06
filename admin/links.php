@@ -29,14 +29,18 @@ if ($action === 'delete' && $id > 0) {
     if (!verify_csrf($_GET['_csrf'] ?? '')) {
         $_SESSION['flash_error'] = '请求已过期';
     } else {
-        $stmt = db()->prepare('SELECT code FROM links WHERE id = ?');
+        $stmt = db()->prepare('SELECT * FROM links WHERE id = ?');
         $stmt->execute([$id]);
         $row = $stmt->fetch();
         if ($row) {
-            db()->prepare('DELETE FROM links WHERE id = ?')->execute([$id]);
-            db()->prepare('DELETE FROM click_logs WHERE link_id = ?')->execute([$id]);
-            log_event('link_delete', '删除短链接 ' . $row['code']);
-            $_SESSION['flash_ok'] = '链接「' . $row['code'] . '」已删除';
+            $moved = trash_link_row($row, (int)($adminUser['id'] ?? 0));
+            if (!$moved) {
+                db()->prepare('DELETE FROM links WHERE id = ?')->execute([$id]);
+                db()->prepare('DELETE FROM click_logs WHERE link_id = ?')->execute([$id]);
+            }
+            log_event('link_delete', '删除短链接 ' . $row['code'] . ($moved ? '（已移入回收站）' : ''));
+            $_SESSION['flash_ok'] = '链接「' . $row['code'] . '」已删除'
+                . ($moved ? '，可在回收站恢复' : '');
         }
     }
     redirect($listUrl);
@@ -102,13 +106,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'bulk') 
             $now   = date('Y-m-d H:i:s');
 
             if ($bulkAction === 'delete') {
-                $sel = db()->prepare('SELECT code FROM links WHERE id IN (' . $marks . ')');
+                $sel = db()->prepare('SELECT * FROM links WHERE id IN (' . $marks . ')');
                 $sel->execute($ids);
-                $codes = $sel->fetchAll(PDO::FETCH_COLUMN);
-                db()->prepare('DELETE FROM links WHERE id IN (' . $marks . ')')->execute($ids);
-                db()->prepare('DELETE FROM click_logs WHERE link_id IN (' . $marks . ')')->execute($ids);
-                log_event('bulk_delete', '批量删除 ' . count($codes) . ' 条短链接: ' . implode(', ', array_slice($codes, 0, 10)));
-                $_SESSION['flash_ok'] = '已删除 ' . count($codes) . ' 条短链接';
+                $rows = $sel->fetchAll();
+                $codes = [];
+                $moved = 0;
+                foreach ($rows as $row) {
+                    $codes[] = (string)$row['code'];
+                    if (trash_link_row($row, (int)($adminUser['id'] ?? 0))) {
+                        $moved++;
+                    } else {
+                        db()->prepare('DELETE FROM links WHERE id = ?')->execute([(int)$row['id']]);
+                        db()->prepare('DELETE FROM click_logs WHERE link_id = ?')->execute([(int)$row['id']]);
+                    }
+                }
+                log_event('bulk_delete', '批量删除 ' . count($codes) . ' 条短链接（' . $moved
+                    . ' 条移入回收站）: ' . implode(', ', array_slice($codes, 0, 10)));
+                $_SESSION['flash_ok'] = '已删除 ' . count($codes) . ' 条短链接'
+                    . ($moved > 0 ? '，其中 ' . $moved . ' 条可在回收站恢复' : '');
             } elseif ($bulkAction === 'set_tag') {
                 $bulkTag = normalize_tag((string)($_POST['bulk_tag'] ?? ''));
                 if ($bulkTag === '') {
