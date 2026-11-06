@@ -62,6 +62,8 @@ require __DIR__ . '/_header.php';
             <?php else: ?>未分组<?php endif; ?>
         </strong></div>
         <div class="kv-row"><span>有效期</span><strong class="mono"><?= e(expiry_label($link)) ?></strong></div>
+        <?php $detailHealth = health_meta(isset($link['check_code']) && $link['check_code'] !== null ? (int)$link['check_code'] : null); ?>
+        <div class="kv-row"><span>目标状态</span><strong><span class="badge <?= e($detailHealth['class']) ?>"><?= e($detailHealth['label']) ?></span></strong></div>
         <div class="kv-row"><span>创建时间</span><strong class="mono"><?= e($link['created_at']) ?></strong></div>
         <div class="kv-row"><span>最后更新</span><strong class="mono"><?= e($link['updated_at']) ?></strong></div>
     </div>

@@ -307,6 +307,8 @@ require __DIR__ . '/_header.php';
                                 <?php if (trim((string)($row['expires_at'] ?? '')) !== ''): ?>
                                     <div class="expiry-hint"><?= e(mb_substr((string)$row['expires_at'], 0, 16)) ?></div>
                                 <?php endif; ?>
+                                <?php $hm = health_meta(isset($row['check_code']) && $row['check_code'] !== null ? (int)$row['check_code'] : null); ?>
+                                <div class="health-hint td-health">目标 <?= e($hm['label']) ?></div>
                             </td>
                             <td class="td-time"><?= e($row['created_at']) ?></td>
                             <td class="td-actions">

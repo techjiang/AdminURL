@@ -26,6 +26,7 @@ $actionLabels = [
     'api_clone'       => 'API 克隆',
     'tag_rename'      => '重命名分组',
     'tag_clear'       => '清除分组',
+    'health_check'    => '健康检查',
     'import'          => '批量导入',
     'export'          => '导出数据',
     'backup'          => '数据备份',
