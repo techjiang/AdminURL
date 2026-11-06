@@ -13,6 +13,7 @@ $activeNav = 'dashboard';
 // 统计
 $stats = ['total' => 0, 'clicks' => 0, 'today' => 0, 'pending' => 0];
 $expiryStats = ['expired' => 0, 'expiring' => 0];
+$healthStats = ['total' => 0, 'ok' => 0, 'bad' => 0, 'unchecked' => 0];
 try {
     $stats['total']   = (int)db()->query('SELECT COUNT(*) AS c FROM links')->fetch()['c'];
     $stats['clicks']  = live_total_clicks();
@@ -21,6 +22,7 @@ try {
     $stats['today']   = (int)$todayStmt->fetch()['c'];
     $stats['pending'] = (int)db()->query('SELECT COUNT(*) AS c FROM click_logs')->fetch()['c'];
     $expiryStats      = link_expiry_stats();
+    $healthStats      = health_summary();
 } catch (Throwable $e) {
     // 表未初始化
 }
@@ -147,6 +149,37 @@ require __DIR__ . '/_header.php';
             <div class="stat-label">待合并点击</div>
         </div>
         <span class="stat-trend">缓冲队列</span>
+    </div>
+</div>
+
+<?php $attentionTotal = (int)$expiryStats['expired'] + (int)$expiryStats['expiring']
+    + (int)$healthStats['bad'] + (int)$healthStats['unchecked']; ?>
+<div class="card" style="margin-bottom:20px">
+    <div class="card-head">
+        <h2><?= icon('shield') ?> 需要关注</h2>
+        <span class="chart-total"><?= $attentionTotal > 0 ? '共 ' . $attentionTotal . ' 项需要跟进' : '当前一切正常' ?></span>
+    </div>
+    <div class="stat-grid" style="margin-bottom:0">
+        <a class="stat-card" style="text-decoration:none;color:inherit" href="<?= e(base_path('/admin/links.php?status=expired')) ?>">
+            <span class="stat-label">已过期短链</span>
+            <strong class="stat-value"><?= number_format((int)$expiryStats['expired']) ?></strong>
+            <span class="stat-foot">查看已过期链接 →</span>
+        </a>
+        <a class="stat-card" style="text-decoration:none;color:inherit" href="<?= e(base_path('/admin/links.php?status=expiring')) ?>">
+            <span class="stat-label">7 天内到期</span>
+            <strong class="stat-value"><?= number_format((int)$expiryStats['expiring']) ?></strong>
+            <span class="stat-foot">提前续期或替换 →</span>
+        </a>
+        <a class="stat-card" style="text-decoration:none;color:inherit" href="<?= e(base_path('/admin/links.php?status=bad')) ?>">
+            <span class="stat-label">目标异常</span>
+            <strong class="stat-value"><?= number_format((int)$healthStats['bad']) ?></strong>
+            <span class="stat-foot">来自健康检查 →</span>
+        </a>
+        <a class="stat-card" style="text-decoration:none;color:inherit" href="<?= e(base_path('/admin/health.php')) ?>">
+            <span class="stat-label">尚未检测</span>
+            <strong class="stat-value"><?= number_format((int)$healthStats['unchecked']) ?></strong>
+            <span class="stat-foot">前往健康检查 →</span>
+        </a>
     </div>
 </div>
 

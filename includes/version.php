@@ -5,5 +5,5 @@
  * 单点维护版本号，后台界面与发布标记统一读取本文件。
  */
 
-define('ADMINURL_VERSION', '2.8.0');
+define('ADMINURL_VERSION', '2.9.0');
 define('ADMINURL_RELEASE_DATE', '2026-11-06');

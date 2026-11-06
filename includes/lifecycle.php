@@ -131,6 +131,36 @@ function expiry_label(array|string $link): string
 }
 
 /**
+ * 有效期的剩余时间文案（用于详情页与到期提醒）
+ */
+function expiry_remaining(array|string $link): string
+{
+    $value = is_array($link) ? (string)($link['expires_at'] ?? '') : $link;
+    $value = trim($value);
+    if ($value === '') {
+        return '永久有效';
+    }
+    $ts = strtotime($value);
+    if ($ts === false) {
+        return '永久有效';
+    }
+    $diff = $ts - time();
+    if ($diff <= 0) {
+        return '已过期';
+    }
+    $days    = intdiv($diff, 86400);
+    $hours   = intdiv($diff % 86400, 3600);
+    $minutes = intdiv($diff % 3600, 60);
+    if ($days > 0) {
+        return '剩余 ' . $days . ' 天' . ($hours > 0 ? ' ' . $hours . ' 小时' : '');
+    }
+    if ($hours > 0) {
+        return '剩余 ' . $hours . ' 小时' . ($minutes > 0 ? ' ' . $minutes . ' 分钟' : '');
+    }
+    return '剩余 ' . max(1, $minutes) . ' 分钟';
+}
+
+/**
  * 状态徽章：已停用 > 已过期 > 正常，全站统一口径
  *
  * @return array{label: string, class: string}

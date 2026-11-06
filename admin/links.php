@@ -2,7 +2,8 @@
 /**
  * AdminURL 管理后台 - 链接管理
  *
- * 支持搜索、筛选、排序、分页、编辑、有效期、删除、启用/停用、一键克隆、批量操作与 CSV 导出。
+ * 支持搜索、分组 / 状态筛选、排序、分页、编辑、有效期、删除、启用/停用、一键克隆、
+ * 批量分组与有效期维护、CSV 导出。
  */
 
 require_once __DIR__ . '/_init.php';
@@ -92,10 +93,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'bulk') 
 
         if (count($ids) === 0) {
             $_SESSION['flash_error'] = '请先勾选要操作的短链接';
-        } elseif (!in_array($bulkAction, ['enable', 'disable', 'delete'], true)) {
+        } elseif (!in_array($bulkAction, [
+            'enable', 'disable', 'delete', 'set_tag', 'clear_tag', 'set_expiry', 'clear_expiry',
+        ], true)) {
             $_SESSION['flash_error'] = '未知的批量操作';
         } else {
             $marks = implode(',', array_fill(0, count($ids), '?'));
+            $now   = date('Y-m-d H:i:s');
 
             if ($bulkAction === 'delete') {
                 $sel = db()->prepare('SELECT code FROM links WHERE id IN (' . $marks . ')');
@@ -105,13 +109,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'bulk') 
                 db()->prepare('DELETE FROM click_logs WHERE link_id IN (' . $marks . ')')->execute($ids);
                 log_event('bulk_delete', '批量删除 ' . count($codes) . ' 条短链接: ' . implode(', ', array_slice($codes, 0, 10)));
                 $_SESSION['flash_ok'] = '已删除 ' . count($codes) . ' 条短链接';
+            } elseif ($bulkAction === 'set_tag') {
+                $bulkTag = normalize_tag((string)($_POST['bulk_tag'] ?? ''));
+                if ($bulkTag === '') {
+                    $_SESSION['flash_error'] = '请填写要设置的分组标签';
+                } else {
+                    $upd = db()->prepare('UPDATE links SET tag = ?, updated_at = ? WHERE id IN (' . $marks . ')');
+                    $upd->execute([$bulkTag, $now, ...$ids]);
+                    log_event('bulk_tag', '批量设置分组「' . $bulkTag . '」，共 ' . $upd->rowCount() . ' 条');
+                    $_SESSION['flash_ok'] = '已将 ' . $upd->rowCount() . ' 条链接归入「' . $bulkTag . '」';
+                }
+            } elseif ($bulkAction === 'clear_tag') {
+                $upd = db()->prepare("UPDATE links SET tag = '', updated_at = ? WHERE id IN (" . $marks . ')');
+                $upd->execute([$now, ...$ids]);
+                log_event('bulk_tag', '批量清除分组，共 ' . $upd->rowCount() . ' 条');
+                $_SESSION['flash_ok'] = '已清除 ' . $upd->rowCount() . ' 条链接的分组';
+            } elseif ($bulkAction === 'set_expiry') {
+                $bulkExpiry = validate_expiry_input((string)($_POST['bulk_expires_at'] ?? ''));
+                if (!$bulkExpiry['ok']) {
+                    $_SESSION['flash_error'] = $bulkExpiry['error'];
+                } else {
+                    $upd = db()->prepare('UPDATE links SET expires_at = ?, updated_at = ? WHERE id IN (' . $marks . ')');
+                    $upd->execute([$bulkExpiry['value'], $now, ...$ids]);
+                    log_event('bulk_expiry', '批量设置有效期 ' . $bulkExpiry['value'] . '，共 ' . $upd->rowCount() . ' 条');
+                    $_SESSION['flash_ok'] = '已为 ' . $upd->rowCount() . ' 条链接设置有效期';
+                }
+            } elseif ($bulkAction === 'clear_expiry') {
+                $upd = db()->prepare('UPDATE links SET expires_at = NULL, updated_at = ? WHERE id IN (' . $marks . ')');
+                $upd->execute([$now, ...$ids]);
+                log_event('bulk_expiry', '批量清除有效期，共 ' . $upd->rowCount() . ' 条');
+                $_SESSION['flash_ok'] = '已清除 ' . $upd->rowCount() . ' 条链接的有效期';
             } else {
-                $status = $bulkAction === 'enable' ? 1 : 0;
+                $newStatus = $bulkAction === 'enable' ? 1 : 0;
                 $upd = db()->prepare('UPDATE links SET status = ?, updated_at = ? WHERE id IN (' . $marks . ')');
-                $upd->execute([$status, date('Y-m-d H:i:s'), ...$ids]);
+                $upd->execute([$newStatus, $now, ...$ids]);
                 $affected = $upd->rowCount();
-                log_event('bulk_toggle', ($status === 1 ? '批量启用 ' : '批量停用 ') . $affected . ' 条短链接');
-                $_SESSION['flash_ok'] = ($status === 1 ? '已启用 ' : '已停用 ') . $affected . ' 条短链接';
+                log_event('bulk_toggle', ($newStatus === 1 ? '批量启用 ' : '批量停用 ') . $affected . ' 条短链接');
+                $_SESSION['flash_ok'] = ($newStatus === 1 ? '已启用 ' : '已停用 ') . $affected . ' 条短链接';
             }
         }
     }
@@ -235,6 +269,8 @@ require __DIR__ . '/_header.php';
             <option value="1" <?= $status === '1' ? 'selected' : '' ?>>正常</option>
             <option value="0" <?= $status === '0' ? 'selected' : '' ?>>已停用</option>
             <option value="expired" <?= $status === 'expired' ? 'selected' : '' ?>>已过期</option>
+            <option value="expiring" <?= $status === 'expiring' ? 'selected' : '' ?>>7 天内到期</option>
+            <option value="bad" <?= $status === 'bad' ? 'selected' : '' ?>>目标异常</option>
         </select>
         <label for="filter-tag">分组</label>
         <select name="tag" id="filter-tag">
@@ -336,8 +372,20 @@ require __DIR__ . '/_header.php';
                 <select name="bulk_action" id="bulk-action" aria-label="批量操作">
                     <option value="enable">批量启用</option>
                     <option value="disable">批量停用</option>
+                    <option value="set_tag">批量设置分组</option>
+                    <option value="clear_tag">批量清除分组</option>
+                    <option value="set_expiry">批量设置有效期</option>
+                    <option value="clear_expiry">批量清除有效期</option>
                     <option value="delete">批量删除</option>
                 </select>
+                <input type="text" name="bulk_tag" list="bulk-tag-suggestions" maxlength="32" placeholder="分组标签" aria-label="批量分组标签" style="max-width:150px">
+                <datalist id="bulk-tag-suggestions">
+                    <?php foreach ($tagOptions as $t): ?>
+                        <?php if ((string)$t['tag'] === '') { continue; } ?>
+                        <option value="<?= e($t['tag']) ?>"></option>
+                    <?php endforeach; ?>
+                </datalist>
+                <input type="datetime-local" name="bulk_expires_at" aria-label="批量有效期" style="max-width:190px">
                 <button type="submit" class="btn btn-primary btn-sm" id="bulk-submit" disabled>应用操作</button>
                 <span class="muted" style="font-size:12px">仅对当前页勾选的链接生效</span>
             </div>
@@ -413,5 +461,26 @@ require __DIR__ . '/_header.php';
     </div>
 </div>
 <?php endif; ?>
+
+<script>
+    (function () {
+        var action = document.getElementById('bulk-action');
+        var tagInput = document.querySelector('input[name="bulk_tag"]');
+        var expInput = document.querySelector('input[name="bulk_expires_at"]');
+        if (!action) { return; }
+        function sync() {
+            if (tagInput) {
+                tagInput.disabled = action.value !== 'set_tag';
+                tagInput.style.opacity = tagInput.disabled ? '.55' : '1';
+            }
+            if (expInput) {
+                expInput.disabled = action.value !== 'set_expiry';
+                expInput.style.opacity = expInput.disabled ? '.55' : '1';
+            }
+        }
+        action.addEventListener('change', sync);
+        sync();
+    })();
+</script>
 
 <?php require __DIR__ . '/_footer.php'; ?>

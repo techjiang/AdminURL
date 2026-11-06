@@ -481,14 +481,14 @@ function short_url(string $code): string
 /**
  * 链接列表公共筛选（后台列表与 CSV 导出共用，保证两者数据一致）
  *
- * 支持 q 搜索、status 状态筛选（全部 / 1 正常 / 0 已停用 / expired 已过期）、
- * sort 排序（默认最新 / clicks / code / expiry 即将到期优先）。
+ * 支持 q 搜索、tag 分组、status 状态筛选（全部 / 1 正常 / 0 已停用 / expired 已过期 /
+ * expiring 7 天内到期 / bad 目标异常），sort 排序（默认最新 / clicks / code / expiry）。
  */
 function link_filter_from_request(): array
 {
     $search = trim((string)($_GET['q'] ?? ''));
     $status = (string)($_GET['status'] ?? '');
-    if (!in_array($status, ['', '0', '1', 'expired'], true)) {
+    if (!in_array($status, ['', '0', '1', 'expired', 'expiring', 'bad'], true)) {
         $status = '';
     }
     $sort = (string)($_GET['sort'] ?? '');
@@ -515,6 +515,12 @@ function link_filter_from_request(): array
     } elseif ($status === 'expired') {
         $conditions[] = "expires_at IS NOT NULL AND expires_at <> '' AND expires_at <= ?";
         $params[] = date('Y-m-d H:i:s');
+    } elseif ($status === 'expiring') {
+        $conditions[] = "status = 1 AND expires_at IS NOT NULL AND expires_at <> '' AND expires_at > ? AND expires_at <= ?";
+        array_push($params, date('Y-m-d H:i:s'), date('Y-m-d H:i:s', time() + 7 * 86400));
+    } elseif ($status === 'bad') {
+        // 4xx/5xx 与「检测过但连不上」都算目标异常，与 health_meta() 口径一致
+        $conditions[] = '(check_code >= 400 OR (check_code IS NULL AND checked_at IS NOT NULL))';
     }
     if ($tag === '__none') {
         $conditions[] = "tag = ''";
