@@ -32,6 +32,7 @@ $actionLabels = [
     'trash_restore'   => '回收站恢复',
     'trash_purge'     => '彻底删除',
     'trash_clear'     => '清空回收站',
+    'clicks_clear'    => '清空访问明细',
     'import'          => '批量导入',
     'export'          => '导出数据',
     'backup'          => '数据备份',

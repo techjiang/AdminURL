@@ -111,7 +111,7 @@ if (link_is_protected($link)) {
 }
 
 // ============ 延迟计数 ============
-record_click_delayed((int)$link['id']);
+record_click_delayed((int)$link['id'], $code);
 
 // ============ 跳转 ============
 $redirectType = (string)setting('redirect_type', '302');
@@ -182,7 +182,7 @@ HTML;
 /**
  * 延迟计数：点击写入缓冲队列，达到阈值或超时后合并
  */
-function record_click_delayed(int $linkId): void
+function record_click_delayed(int $linkId, string $code = ''): void
 {
     record_click_daily($linkId);
     try {
@@ -197,6 +197,12 @@ function record_click_delayed(int $linkId): void
             date('Y-m-d H:i:s'),
         ]);
         record_click_audience(
+            (string)($_SERVER['HTTP_REFERER'] ?? ''),
+            (string)($_SERVER['HTTP_USER_AGENT'] ?? '')
+        );
+        record_click_event(
+            $linkId,
+            $code,
             (string)($_SERVER['HTTP_REFERER'] ?? ''),
             (string)($_SERVER['HTTP_USER_AGENT'] ?? '')
         );

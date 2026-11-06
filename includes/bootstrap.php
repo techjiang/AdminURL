@@ -53,6 +53,7 @@ require_once ROOT . '/includes/health.php';
 require_once ROOT . '/includes/audience.php';
 require_once ROOT . '/includes/link_access.php';
 require_once ROOT . '/includes/trash.php';
+require_once ROOT . '/includes/click_events.php';
 
 // 安全响应头
 header('X-Frame-Options: SAMEORIGIN');
